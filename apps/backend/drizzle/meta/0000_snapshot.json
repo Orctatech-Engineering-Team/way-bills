@@ -1,5 +1,5 @@
 {
-  "id": "8e6fdb30-1e01-43fc-99e0-7200b55216e7",
+  "id": "f723a65f-505a-4d2e-ab20-d84c4aa29137",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -64,6 +64,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "weekly_band_limit": {
+          "name": "weekly_band_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overflow_delivery_rate_cents": {
+          "name": "overflow_delivery_rate_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "active": {
           "name": "active",
@@ -243,6 +255,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "pricing_tier": {
+          "name": "pricing_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
         },
         "created_at": {
           "name": "created_at",
@@ -528,7 +547,7 @@
           "name": "recipient_name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "signature_file_url": {
           "name": "signature_file_url",
@@ -616,6 +635,378 @@
             "id"
           ],
           "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rider_shift_handovers": {
+      "name": "rider_shift_handovers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "outgoing_shift_id": {
+          "name": "outgoing_shift_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outgoing_rider_id": {
+          "name": "outgoing_rider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "incoming_rider_id": {
+          "name": "incoming_rider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "initiated_by": {
+          "name": "initiated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_by": {
+          "name": "completed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "shift_handover_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initiated_at": {
+          "name": "initiated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "outgoing_confirmed_at": {
+          "name": "outgoing_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "incoming_confirmed_at": {
+          "name": "incoming_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "rider_shift_handovers_outgoing_shift_id_idx": {
+          "name": "rider_shift_handovers_outgoing_shift_id_idx",
+          "columns": [
+            {
+              "expression": "outgoing_shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rider_shift_handovers_outgoing_rider_id_idx": {
+          "name": "rider_shift_handovers_outgoing_rider_id_idx",
+          "columns": [
+            {
+              "expression": "outgoing_rider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rider_shift_handovers_incoming_rider_id_idx": {
+          "name": "rider_shift_handovers_incoming_rider_id_idx",
+          "columns": [
+            {
+              "expression": "incoming_rider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rider_shift_handovers_initiated_at_idx": {
+          "name": "rider_shift_handovers_initiated_at_idx",
+          "columns": [
+            {
+              "expression": "initiated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rider_shift_handovers_outgoing_shift_id_rider_shifts_id_fk": {
+          "name": "rider_shift_handovers_outgoing_shift_id_rider_shifts_id_fk",
+          "tableFrom": "rider_shift_handovers",
+          "tableTo": "rider_shifts",
+          "columnsFrom": [
+            "outgoing_shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "rider_shift_handovers_outgoing_rider_id_users_id_fk": {
+          "name": "rider_shift_handovers_outgoing_rider_id_users_id_fk",
+          "tableFrom": "rider_shift_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "outgoing_rider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rider_shift_handovers_incoming_rider_id_users_id_fk": {
+          "name": "rider_shift_handovers_incoming_rider_id_users_id_fk",
+          "tableFrom": "rider_shift_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "incoming_rider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rider_shift_handovers_initiated_by_users_id_fk": {
+          "name": "rider_shift_handovers_initiated_by_users_id_fk",
+          "tableFrom": "rider_shift_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "initiated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rider_shift_handovers_completed_by_users_id_fk": {
+          "name": "rider_shift_handovers_completed_by_users_id_fk",
+          "tableFrom": "rider_shift_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "completed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rider_shifts": {
+      "name": "rider_shifts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "rider_id": {
+          "name": "rider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_by": {
+          "name": "started_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ended_by": {
+          "name": "ended_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "rider_shift_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_in_at": {
+          "name": "check_in_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "check_out_at": {
+          "name": "check_out_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "rider_shifts_rider_id_idx": {
+          "name": "rider_shifts_rider_id_idx",
+          "columns": [
+            {
+              "expression": "rider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rider_shifts_status_idx": {
+          "name": "rider_shifts_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rider_shifts_check_in_at_idx": {
+          "name": "rider_shifts_check_in_at_idx",
+          "columns": [
+            {
+              "expression": "check_in_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rider_shifts_rider_id_users_id_fk": {
+          "name": "rider_shifts_rider_id_users_id_fk",
+          "tableFrom": "rider_shifts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "rider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rider_shifts_started_by_users_id_fk": {
+          "name": "rider_shifts_started_by_users_id_fk",
+          "tableFrom": "rider_shifts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "started_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rider_shifts_ended_by_users_id_fk": {
+          "name": "rider_shifts_ended_by_users_id_fk",
+          "tableFrom": "rider_shifts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "ended_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -773,6 +1164,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "default_client_id": {
+          "name": "default_client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "vehicle_type": {
           "name": "vehicle_type",
           "type": "text",
@@ -863,7 +1260,161 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "users_default_client_id_clients_id_fk": {
+          "name": "users_default_client_id_clients_id_fk",
+          "tableFrom": "users",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "default_client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.waybill_handovers": {
+      "name": "waybill_handovers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "waybill_id": {
+          "name": "waybill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_rider_id": {
+          "name": "from_rider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_rider_id": {
+          "name": "to_rider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "handed_over_at": {
+          "name": "handed_over_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "waybill_handovers_waybill_id_idx": {
+          "name": "waybill_handovers_waybill_id_idx",
+          "columns": [
+            {
+              "expression": "waybill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "waybill_handovers_handed_over_at_idx": {
+          "name": "waybill_handovers_handed_over_at_idx",
+          "columns": [
+            {
+              "expression": "handed_over_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "waybill_handovers_waybill_id_waybills_id_fk": {
+          "name": "waybill_handovers_waybill_id_waybills_id_fk",
+          "tableFrom": "waybill_handovers",
+          "tableTo": "waybills",
+          "columnsFrom": [
+            "waybill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "waybill_handovers_from_rider_id_users_id_fk": {
+          "name": "waybill_handovers_from_rider_id_users_id_fk",
+          "tableFrom": "waybill_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "from_rider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "waybill_handovers_to_rider_id_users_id_fk": {
+          "name": "waybill_handovers_to_rider_id_users_id_fk",
+          "tableFrom": "waybill_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "to_rider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "waybill_handovers_created_by_users_id_fk": {
+          "name": "waybill_handovers_created_by_users_id_fk",
+          "tableFrom": "waybill_handovers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -902,7 +1453,7 @@
           "name": "customer_name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "customer_phone": {
           "name": "customer_phone",
@@ -916,12 +1467,25 @@
           "primaryKey": false,
           "notNull": true
         },
+        "delivery_method": {
+          "name": "delivery_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'cash'"
+        },
         "billable_amount_cents": {
           "name": "billable_amount_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "item_value_cents": {
+          "name": "item_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "receipt_image_url": {
           "name": "receipt_image_url",
@@ -955,6 +1519,12 @@
         },
         "completion_time": {
           "name": "completion_time",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "return_time": {
+          "name": "return_time",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -1150,6 +1720,23 @@
         "issued",
         "paid",
         "void"
+      ]
+    },
+    "public.rider_shift_status": {
+      "name": "rider_shift_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "completed"
+      ]
+    },
+    "public.shift_handover_status": {
+      "name": "shift_handover_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "completed",
+        "cancelled"
       ]
     },
     "public.user_role": {

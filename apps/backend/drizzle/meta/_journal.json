@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1774032649913,
-      "tag": "0000_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1774035339420,
-      "tag": "0001_complete_captain_midlands",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1774045129426,
-      "tag": "0002_good_doctor_octopus",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1774047007521,
-      "tag": "0003_curious_bromley",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1774047924318,
-      "tag": "0004_orange_human_cannonball",
+      "when": 1774127031803,
+      "tag": "0000_great_aqueduct",
       "breakpoints": true
     }
   ]
