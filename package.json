@@ -1,0 +1,21 @@
+{
+  "name": "way-bills",
+  "private": true,
+  "module": "index.ts",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run dev:all",
+    "dev:all": "bun run --parallel dev:backend dev:frontend",
+    "dev:frontend": "bun run --cwd apps/frontend dev",
+    "dev:backend": "bun run --cwd apps/backend dev",
+    "build:frontend": "bun run --cwd apps/frontend build",
+    "test:backend": "bun run --cwd apps/backend test",
+    "typecheck:backend": "bun run --cwd apps/backend typecheck",
+    "typecheck:frontend": "bun run --cwd apps/frontend typecheck"
+  },
+  "devDependencies": {}
+}

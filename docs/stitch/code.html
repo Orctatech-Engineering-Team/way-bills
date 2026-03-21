@@ -1,0 +1,290 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Digital Waybill | Elect Energy Nig. Ltd.</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary-fixed": "#071e27",
+              "tertiary-container": "#081f28",
+              "on-surface": "#1b1b1e",
+              "tertiary-fixed-dim": "#b4cad6",
+              "on-background": "#1b1b1e",
+              "on-primary-fixed-variant": "#39456b",
+              "primary-fixed-dim": "#b9c5f2",
+              "on-primary-container": "#7784ad",
+              "on-primary": "#ffffff",
+              "primary-container": "#0d1b3e",
+              "error-container": "#ffdad6",
+              "background": "#fbf8fc",
+              "on-tertiary-container": "#728893",
+              "on-error-container": "#93000a",
+              "on-secondary": "#ffffff",
+              "primary-fixed": "#dbe1ff",
+              "on-error": "#ffffff",
+              "on-surface-variant": "#45464e",
+              "surface-container-lowest": "#ffffff",
+              "on-tertiary": "#ffffff",
+              "tertiary": "#000204",
+              "secondary-fixed-dim": "#ffb4ac",
+              "surface-dim": "#dbd9dd",
+              "surface-container-high": "#eae7eb",
+              "outline": "#76767f",
+              "on-tertiary-fixed-variant": "#354a53",
+              "surface-variant": "#e4e2e5",
+              "inverse-surface": "#303033",
+              "on-secondary-container": "#fffbff",
+              "on-secondary-fixed": "#410003",
+              "inverse-primary": "#b9c5f2",
+              "on-primary-fixed": "#0b1a3d",
+              "tertiary-fixed": "#cfe6f2",
+              "surface-tint": "#515d84",
+              "surface-container-low": "#f5f3f6",
+              "secondary": "#b51a1e",
+              "surface": "#fbf8fc",
+              "inverse-on-surface": "#f2f0f3",
+              "on-secondary-fixed-variant": "#93000e",
+              "surface-bright": "#fbf8fc",
+              "surface-container": "#efedf1",
+              "outline-variant": "#c6c6cf",
+              "secondary-fixed": "#ffdad6",
+              "primary": "#00020e",
+              "surface-container-highest": "#e4e2e5",
+              "secondary-container": "#d93633",
+              "error": "#ba1a1a"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-header {
+        background: rgba(251, 248, 252, 0.8);
+        backdrop-filter: blur(20px);
+      }
+      .zebra-stripe:nth-child(even) {
+        background-color: #f5f3f6;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #fbf8fc;
+      }
+      h1, h2, h3, .font-headline {
+        font-family: 'Manrope', sans-serif;
+      }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- Top Navigation Shell -->
+<header class="bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none docked full-width top-0 sticky z-50">
+<div class="flex justify-between items-center w-full px-8 py-4 max-w-[1440px] mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-[#00020e] dark:text-white uppercase" style="">Orcta Technologies</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="font-['Manrope'] font-bold tracking-tight uppercase text-xs text-[#b51a1e] dark:text-red-500 border-b-2 border-[#b51a1e] pb-1" href="#" style="">Waybills</a>
+<a class="font-['Manrope'] font-bold tracking-tight uppercase text-xs text-slate-500 dark:text-slate-400 hover:text-[#00020e] transition-colors" href="#" style="">Shipments</a>
+<a class="font-['Manrope'] font-bold tracking-tight uppercase text-xs text-slate-500 dark:text-slate-400 hover:text-[#00020e] transition-colors" href="#" style="">Archives</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-primary text-on-primary px-4 py-2 rounded-md font-headline text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all" style="">Export PDF</button>
+<div class="flex items-center gap-2 border-l border-outline-variant/30 pl-4">
+<span class="material-symbols-outlined text-on-surface-variant" style="">notifications</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="Professional logistics manager portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUPL_GU0l_VgRHkEy6-hXaA3WZlPLEpNNgUi4dou_ljeE82T1Lz5M_AdgjyUP7kGzC5BRMY05YsIwZSrI3YYIa6mEXQy_dXAScI462YwTLGOImr5zvVLg2F18JjS9Oi8eqJitDZJQOZ0lpwVFGBeosZjZ3oz8HjeyCJvxvXtNuseUjpopHlqZ0VjCTzY7qHIa19xDS7PMCi7FKpSImLaghaAypbJjJTVYRHTftG0ptrmCNmmdswI09MMUwiIzKh5DMSjRwIXKmROI" style="">
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-5xl mx-auto px-6 py-12">
+<!-- Waybill Header -->
+<div class="flex flex-col md:flex-row justify-between items-start mb-16 gap-8">
+<div class="space-y-2">
+<h1 class="text-4xl font-extrabold tracking-tighter text-primary" style="">WAYBILL / DELIVERY NOTE</h1>
+<div class="flex items-center gap-4">
+<span class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase" style="">Verified Shipment</span>
+<span class="text-on-surface-variant text-sm font-medium" style="">Logistics Authority: Lagos HQ</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10 min-w-[280px]">
+<div class="flex justify-between items-center mb-4">
+<span class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant" style="">Waybill Number</span>
+<span class="font-headline font-extrabold text-xl text-primary" style="">0000003</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant" style="">Date Issued</span>
+<span class="font-body font-semibold text-sm" style="">October 24, 2024</span>
+</div>
+</div>
+</div>
+<!-- Section 1: Logistics Metadata Bento -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+<div class="md:col-span-2 bg-surface-container-low p-8 rounded-xl space-y-4">
+<label class="block font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant" style="">Destination of Goods</label>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary" style="">location_on</span>
+<div>
+<p class="font-body text-lg font-semibold leading-tight" style="">Port Harcourt Distribution Hub</p>
+<p class="text-on-surface-variant text-sm" style="">Plot 12, Trans-Amadi Industrial Layout, Rivers State</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high p-8 rounded-xl flex flex-col justify-center items-center text-center">
+<label class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant mb-2" style="">Tonnage Loaded</label>
+<p class="font-headline font-black text-3xl text-primary" style="">45.5<span class="text-sm font-normal ml-1" style="">TONS</span></p>
+<div class="w-full bg-surface-variant h-1 rounded-full mt-4 overflow-hidden">
+<div class="bg-gradient-to-r from-primary to-secondary h-full w-3/4"></div>
+</div>
+</div>
+<div class="bg-surface-container-low p-8 rounded-xl space-y-6">
+<div>
+<label class="block font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant mb-1" style="">Invoice No.</label>
+<p class="font-headline font-bold text-primary" style="">INV-88902</p>
+</div>
+<div>
+<label class="block font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant mb-1" style="">P.O. No.</label>
+<p class="font-headline font-bold text-primary" style="">PO-4451-EE</p>
+</div>
+</div>
+</div>
+<!-- Section 2: Items Table -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-outline-variant/10 mb-12">
+<div class="bg-primary text-on-primary px-8 py-4 flex justify-between items-center">
+<h3 class="font-headline font-bold text-sm tracking-widest uppercase" style="">Description of Goods</h3>
+<span class="text-[10px] opacity-70 uppercase tracking-tighter" style="">Manifest v2.4</span>
+</div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/50 text-on-surface-variant font-headline font-bold text-[11px] uppercase tracking-widest">
+<th class="px-8 py-4 w-24" style="">Qty</th>
+<th class="px-8 py-4 w-40" style="">Item Code</th>
+<th class="px-8 py-4" style="">Detailed Description</th>
+</tr>
+</thead>
+<tbody class="font-body text-sm">
+<tr class="zebra-stripe border-b border-outline-variant/5">
+<td class="px-8 py-6 font-bold text-primary" style="">120</td>
+<td class="px-8 py-6 text-on-surface-variant font-mono" style="">EE-LUB-500</td>
+<td class="px-8 py-6 font-medium" style="">Industrial Grade Lubricant - 500L Drums (Premium Synthetic)</td>
+</tr>
+<tr class="zebra-stripe border-b border-outline-variant/5">
+<td class="px-8 py-6 font-bold text-primary" style="">15</td>
+<td class="px-8 py-6 text-on-surface-variant font-mono" style="">EE-TUR-X1</td>
+<td class="px-8 py-6 font-medium" style="">Turbine Maintenance Kits - Generation Set Type-C</td>
+</tr>
+<tr class="zebra-stripe border-b border-outline-variant/5">
+<td class="px-8 py-6 font-bold text-primary" style="">250</td>
+<td class="px-8 py-6 text-on-surface-variant font-mono" style="">EE-FIL-HF</td>
+<td class="px-8 py-6 font-medium" style="">High-Flow Filtration Units (Heavy Duty)</td>
+</tr>
+<tr class="zebra-stripe border-b border-outline-variant/5">
+<td class="px-8 py-6 font-bold text-primary" style="">1,200</td>
+<td class="px-8 py-6 text-on-surface-variant font-mono" style="">EE-SLT-09</td>
+<td class="px-8 py-6 font-medium" style="">Safety Seal Tags - Serialized Anti-Tamper Red</td>
+</tr>
+</tbody>
+</table>
+<div class="px-8 py-6 bg-surface-container-low/30 text-right">
+<span class="text-on-surface-variant font-headline font-bold text-xs uppercase tracking-widest mr-4" style="">Total Manifest Items:</span>
+<span class="font-headline font-extrabold text-lg text-primary" style="">1,585 Units</span>
+</div>
+</div>
+<!-- Section 3: Receiver's Details & Signature -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+<div class="md:col-span-2 space-y-8">
+<h3 class="font-headline font-extrabold text-xl text-primary border-b border-secondary/20 pb-2" style="">Receiver's Credentials</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="block font-headline font-bold text-[10px] uppercase tracking-widest text-on-surface-variant" style="">Full Name</label>
+<p class="font-body text-md font-semibold border-b border-outline-variant/20 pb-2" style="">Engr. Chinedu Okafor</p>
+</div>
+<div class="space-y-1">
+<label class="block font-headline font-bold text-[10px] uppercase tracking-widest text-on-surface-variant" style="">Phone Number</label>
+<p class="font-body text-md font-semibold border-b border-outline-variant/20 pb-2" style="">+234 (0) 803 123 4567</p>
+</div>
+<div class="md:col-span-2 space-y-1">
+<label class="block font-headline font-bold text-[10px] uppercase tracking-widest text-on-surface-variant" style="">Delivery Address</label>
+<p class="font-body text-md font-semibold border-b border-outline-variant/20 pb-2" style="">Warehouse 4B, South Sector, PH Industrial Hub, Rivers State</p>
+</div>
+<div class="space-y-1">
+<label class="block font-headline font-bold text-[10px] uppercase tracking-widest text-on-surface-variant" style="">Received Date</label>
+<p class="font-body text-md font-semibold border-b border-outline-variant/20 pb-2" style="">Oct 26, 2024 | 14:32 WAT</p>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<label class="block font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant text-center" style="">Digital Acknowledgment</label>
+<div class="bg-surface-container-lowest border-2 border-dashed border-outline-variant/30 rounded-2xl h-48 flex items-center justify-center relative overflow-hidden group">
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-9xl" style="">edit_square</span>
+</div>
+<!-- Mock Digital Signature -->
+<svg class="w-48 h-24 text-primary opacity-90" viewBox="0 0 200 100">
+<path d="M20,50 Q40,20 60,50 T100,50 T140,50 T180,30" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+<path d="M40,70 Q70,90 120,60" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"></path>
+</svg>
+<span class="absolute bottom-3 right-3 text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-tighter" style="">Encrypted Signature ID: #EE-99X</span>
+</div>
+<p class="text-[10px] text-on-surface-variant text-center leading-relaxed" style="">By signing, the receiver acknowledges that the goods listed have been delivered in good condition.</p>
+</div>
+</div>
+<!-- Section 4: Waybill Terms -->
+<div class="bg-surface-container-low/50 p-6 rounded-lg mb-12 border-l-4 border-secondary">
+<h4 class="font-headline font-bold text-xs uppercase tracking-widest text-secondary mb-2" style="">Operating Standards</h4>
+<p class="text-[11px] text-on-surface-variant leading-relaxed" style="">
+                All claims for shortages or damaged goods must be made in writing within 24 hours of delivery. Elect Energy Nig. Ltd. retains ownership of all goods until full payment is received as per invoice INV-88902. Transport handled by approved 3PL partners under SLA-2024-01.
+            </p>
+</div>
+</main>
+<!-- Footer Shell -->
+<footer class="w-full py-8 mt-auto bg-[#fbf8fc] dark:bg-slate-950 border-t border-slate-200/10">
+<div class="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex flex-col items-center md:items-start space-y-2">
+<p class="font-['Inter'] text-[11px] tracking-widest uppercase text-slate-400 dark:text-slate-500" style="">© 2024 Elect Energy Nig. Ltd. | Secure Digital Waybill System</p>
+<p class="text-[10px] text-slate-400" style="">Headquarters: 15B Admiralty Way, Lekki Phase 1, Lagos, Nigeria</p>
+</div>
+<div class="flex flex-wrap justify-center gap-6">
+<a class="font-['Inter'] text-[11px] tracking-widest uppercase text-slate-500 dark:text-slate-600 hover:text-[#b51a1e] dark:hover:text-red-400 underline-offset-4 hover:underline transition-all" href="#" style="">Technical Support</a>
+<a class="font-['Inter'] text-[11px] tracking-widest uppercase text-slate-500 dark:text-slate-600 hover:text-[#b51a1e] dark:hover:text-red-400 underline-offset-4 hover:underline transition-all" href="#" style="">Privacy Policy</a>
+<a class="font-['Inter'] text-[11px] tracking-widest uppercase text-slate-500 dark:text-slate-600 hover:text-[#b51a1e] dark:hover:text-red-400 underline-offset-4 hover:underline transition-all" href="#" style="">Operating Standards</a>
+<a class="font-['Inter'] text-[11px] tracking-widest uppercase text-slate-500 dark:text-slate-600 hover:text-[#b51a1e] dark:hover:text-red-400 underline-offset-4 hover:underline transition-all" href="#" style="">HQ Contact</a>
+</div>
+</div>
+</footer>
+<!-- Mobile Navigation Shell (Bottom) -->
+<div class="md:hidden fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-outline-variant/10 px-6 py-4 flex justify-between items-center z-50">
+<div class="flex flex-col items-center text-secondary">
+<span class="material-symbols-outlined" style="">description</span>
+<span class="text-[10px] font-bold uppercase mt-1" style="">Waybill</span>
+</div>
+<div class="flex flex-col items-center text-on-surface-variant opacity-50">
+<span class="material-symbols-outlined" style="">local_shipping</span>
+<span class="text-[10px] font-bold uppercase mt-1" style="">Transit</span>
+</div>
+<div class="flex flex-col items-center text-on-surface-variant opacity-50">
+<span class="material-symbols-outlined" style="">history</span>
+<span class="text-[10px] font-bold uppercase mt-1" style="">Logs</span>
+</div>
+<div class="flex flex-col items-center text-on-surface-variant opacity-50">
+<span class="material-symbols-outlined" style="">account_circle</span>
+<span class="text-[10px] font-bold uppercase mt-1" style="">Profile</span>
+</div>
+</div>
+</body></html>
