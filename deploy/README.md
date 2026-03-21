@@ -38,6 +38,12 @@ cp deploy/compose.env.example deploy/compose.env
 docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml up -d --build
 ```
 
+Or use the helper script:
+
+```bash
+bash deploy/deploy.sh up
+```
+
 ## Run database migrations
 
 ```bash
@@ -49,6 +55,16 @@ docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --
 ```bash
 docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --rm backend bun run db:seed
 ```
+
+## Helper script
+
+`deploy/deploy.sh` wraps the common deployment tasks:
+
+- `bash deploy/deploy.sh up`: build, start, and migrate
+- `bash deploy/deploy.sh migrate`: run migrations only
+- `bash deploy/deploy.sh seed`: run seed data
+- `bash deploy/deploy.sh logs`: tail service logs
+- `bash deploy/deploy.sh pull-up`: pull images, restart, and migrate
 
 ## Notes
 
