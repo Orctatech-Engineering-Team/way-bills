@@ -4,7 +4,12 @@ import { useToast } from '../feedback/ToastProvider'
 import { api } from '../lib/api'
 import { errorMessageFrom } from '../lib/feedback'
 import type { Client } from '../lib/types'
-import { formatMoney } from '../lib/utils'
+import {
+  centsFromMajorInput,
+  formatMoney,
+  majorInputFromCents,
+  sanitizeMoneyInput,
+} from '../lib/utils'
 
 function Panel({
   title,
@@ -53,7 +58,7 @@ function emptyForm(): ClientFormState {
     billingAddress: '',
     currency: 'GHS',
     paymentTermsDays: '7',
-    standardDeliveryRateCents: '0',
+    standardDeliveryRateCents: '0.00',
     weeklyBandLimit: '',
     overflowDeliveryRateCents: '',
     active: true,
@@ -70,11 +75,11 @@ function toFormState(client: Client): ClientFormState {
     billingAddress: client.billingAddress,
     currency: client.currency,
     paymentTermsDays: String(client.paymentTermsDays),
-    standardDeliveryRateCents: String(client.standardDeliveryRateCents),
+    standardDeliveryRateCents: majorInputFromCents(client.standardDeliveryRateCents),
     weeklyBandLimit: client.weeklyBandLimit !== null ? String(client.weeklyBandLimit) : '',
     overflowDeliveryRateCents:
       client.overflowDeliveryRateCents !== null
-        ? String(client.overflowDeliveryRateCents)
+        ? majorInputFromCents(client.overflowDeliveryRateCents)
         : '',
     active: client.active,
   }
@@ -120,10 +125,10 @@ export function ClientsPage() {
       billingAddress: form.billingAddress,
       currency: form.currency.toUpperCase(),
       paymentTermsDays: Number(form.paymentTermsDays || 0),
-      standardDeliveryRateCents: Number(form.standardDeliveryRateCents || 0),
+      standardDeliveryRateCents: centsFromMajorInput(form.standardDeliveryRateCents),
       weeklyBandLimit: form.weeklyBandLimit ? Number(form.weeklyBandLimit) : null,
       overflowDeliveryRateCents: form.overflowDeliveryRateCents
-        ? Number(form.overflowDeliveryRateCents)
+        ? centsFromMajorInput(form.overflowDeliveryRateCents)
         : null,
       active: form.active,
     }
@@ -267,20 +272,25 @@ export function ClientsPage() {
             </label>
 
             <label className="field-stack">
-              <span className="app-label">Standard delivery rate (minor units)</span>
-              <input
-                type="number"
-                min="0"
-                value={form.standardDeliveryRateCents}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    standardDeliveryRateCents: event.target.value,
-                  }))
-                }
-                className="app-input"
-                required
-              />
+              <span className="app-label">Standard delivery rate</span>
+              <div className="input-with-affix">
+                <span className="input-affix">{form.currency || 'GHS'}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.standardDeliveryRateCents}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      standardDeliveryRateCents: sanitizeMoneyInput(event.target.value),
+                    }))
+                  }
+                  className="app-input input-affix-field"
+                  placeholder="30.00"
+                  required
+                />
+              </div>
+              <p className="field-hint">Enter the flat delivery rate as a normal currency amount.</p>
             </label>
 
             <label className="field-stack">
@@ -298,20 +308,26 @@ export function ClientsPage() {
             </label>
 
             <label className="field-stack">
-              <span className="app-label">Overflow rate (minor units)</span>
-              <input
-                type="number"
-                min="0"
-                value={form.overflowDeliveryRateCents}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    overflowDeliveryRateCents: event.target.value,
-                  }))
-                }
-                className="app-input"
-                placeholder="Rate after the weekly band is exceeded"
-              />
+              <span className="app-label">Overflow rate</span>
+              <div className="input-with-affix">
+                <span className="input-affix">{form.currency || 'GHS'}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.overflowDeliveryRateCents}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      overflowDeliveryRateCents: sanitizeMoneyInput(event.target.value),
+                    }))
+                  }
+                  className="app-input input-affix-field"
+                  placeholder="25.00"
+                />
+              </div>
+              <p className="field-hint">
+                Optional rate used after the weekly delivery band has been exceeded.
+              </p>
             </label>
 
             <label className="field-stack lg:col-span-2">

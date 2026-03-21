@@ -74,3 +74,34 @@ export function formatMoney(amountCents: number, currency = 'GHS') {
     minimumFractionDigits: 2,
   }).format(amountCents / 100)
 }
+
+export function sanitizeMoneyInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, '')
+  const [whole = '', ...fractionParts] = cleaned.split('.')
+  if (fractionParts.length === 0) {
+    return whole
+  }
+
+  return `${whole}.${fractionParts.join('').slice(0, 2)}`
+}
+
+export function majorInputFromCents(amountCents: number | null | undefined) {
+  if (amountCents === null || amountCents === undefined) {
+    return ''
+  }
+
+  return (amountCents / 100).toFixed(2)
+}
+
+export function centsFromMajorInput(value: string) {
+  const normalized = sanitizeMoneyInput(value)
+  if (!normalized) {
+    return 0
+  }
+
+  const [whole = '0', fraction = ''] = normalized.split('.')
+  const wholeAmount = Number(whole || '0')
+  const fractionAmount = Number(fraction.padEnd(2, '0').slice(0, 2))
+
+  return wholeAmount * 100 + fractionAmount
+}

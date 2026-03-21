@@ -421,6 +421,7 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
+                    capture="user"
                     className="app-input"
                     onChange={async (event) => {
                       const file = event.target.files?.[0]
@@ -450,35 +451,49 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                   />
                 </label>
 
-                <div className="field-stack">
+                <div className="field-stack md:col-span-2">
                   <span className="app-label">Profile preview</span>
-                  {form.profileImagePreviewUrl ? (
-                    <div className="action-cluster">
-                      <img
-                        src={form.profileImagePreviewUrl}
-                        alt="Rider profile preview"
-                        className="profile-avatar"
-                      />
-                      <button
-                        type="button"
-                        className="btn-quiet"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            profileImageDataUrl: '',
-                            profileImagePreviewUrl: '',
-                            removeProfileImage: true,
-                          }))
-                        }
-                      >
-                        Remove image
-                      </button>
+                  <div className="profile-preview-card">
+                    <div className="profile-preview-frame">
+                      {form.profileImagePreviewUrl ? (
+                        <img
+                          src={form.profileImagePreviewUrl}
+                          alt="Rider profile preview"
+                          className="profile-preview-image"
+                        />
+                      ) : (
+                        <span className="profile-preview-placeholder">
+                          {avatarInitials(form.name || 'Rider')}
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-sm text-(--surface-muted)">
-                      No rider image attached.
-                    </p>
-                  )}
+                    <div className="profile-preview-copy">
+                      <p className="profile-preview-title">
+                        {form.name.trim() || 'Rider profile preview'}
+                      </p>
+                      <p className="profile-preview-text">
+                        {form.profileImagePreviewUrl
+                          ? 'This is the rider image that will appear in the roster and handover views.'
+                          : 'Add a clear rider photo so operations can identify the account quickly.'}
+                      </p>
+                      {form.profileImagePreviewUrl ? (
+                        <button
+                          type="button"
+                          className="btn-quiet"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              profileImageDataUrl: '',
+                              profileImagePreviewUrl: '',
+                              removeProfileImage: true,
+                            }))
+                          }
+                        >
+                          Remove image
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
 
                 <label className="field-stack md:col-span-2">

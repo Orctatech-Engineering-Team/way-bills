@@ -18,11 +18,13 @@ import type {
   WaybillSummary,
 } from '../lib/types'
 import {
+  centsFromMajorInput,
   deliveryMethodLabel,
   formatDate,
   formatDateTime,
   formatMoney,
   formatValue,
+  sanitizeMoneyInput,
 } from '../lib/utils'
 
 function Panel({
@@ -384,6 +386,9 @@ export function CreateWaybillPage() {
     }
   }, [auth.user?.defaultClientId, form.clientId])
 
+  const selectedClient = clients.find((client) => client.id === form.clientId)
+  const itemValueCurrency = selectedClient?.currency ?? 'GHS'
+
   return (
     <ProtectedScreen
       roles={['rider']}
@@ -408,7 +413,7 @@ export function CreateWaybillPage() {
                   deliveryAddress: form.deliveryAddress,
                   deliveryMethod: form.deliveryMethod,
                   itemValueCents: form.itemValueCents
-                    ? Number(form.itemValueCents)
+                    ? centsFromMajorInput(form.itemValueCents)
                     : null,
                   receiptImageDataUrl: form.receiptImageDataUrl || undefined,
                   notes: form.notes || null,
@@ -545,20 +550,23 @@ export function CreateWaybillPage() {
             </label>
 
             <label className="field-stack">
-              <span className="app-label">Item value (minor units)</span>
-              <input
-                type="number"
-                min="0"
-                value={form.itemValueCents}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    itemValueCents: event.target.value,
-                  }))
-                }
-                className="app-input"
-                placeholder="120000"
-              />
+              <span className="app-label">Item value</span>
+              <div className="input-with-affix">
+                <span className="input-affix">{itemValueCurrency}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.itemValueCents}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      itemValueCents: sanitizeMoneyInput(event.target.value),
+                    }))
+                  }
+                  className="app-input input-affix-field"
+                  placeholder="1200.00"
+                />
+              </div>
               <p className="field-hint">
                 This is shown on the waybill for reference only. Client billing still uses the
                 delivery pricing rule.
