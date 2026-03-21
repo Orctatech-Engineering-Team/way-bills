@@ -3,8 +3,8 @@
 This stack assumes:
 
 - Docker and Docker Compose on your VPS
-- an existing external Docker network named `orcta_net`
-- a Caddy instance on that same network handling public TLS and proxying to these services
+- a Caddy instance running directly on the VPS handling public TLS and proxying to these services
+- an existing external Docker network named `orcta_net` if your PostgreSQL service is only reachable on that network
 - PostgreSQL running on your VPS or reachable from it
 - Cloudflare R2 for file storage
 
@@ -13,11 +13,11 @@ This stack assumes:
 - `docker-compose.yml`: app stack
 - `backend.env.example`: backend runtime environment
 - `compose.env.example`: Compose-time variables
-- `Caddyfile.example`: example Caddy route for the app domain
+- `Caddyfile.example`: example host Caddy routes for the frontend and API domains
 
 ## First-time setup
 
-1. Create the shared network if it does not already exist:
+1. If your PostgreSQL service is on Docker and reachable through `orcta_net`, make sure that network exists:
 
 ```bash
 docker network create orcta_net
@@ -30,7 +30,9 @@ cp deploy/backend.env.example deploy/backend.env
 cp deploy/compose.env.example deploy/compose.env
 ```
 
-3. Make sure your external Caddy is attached to `orcta_net` and add the route from `deploy/Caddyfile.example`.
+3. Add the routes from `deploy/Caddyfile.example` to your host Caddy config. They proxy:
+- `waybills.orctatech.com` to the frontend loopback port
+- `api.waybills.orctatech.com` to the backend loopback port
 
 ## Build and start
 
@@ -68,7 +70,9 @@ docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --
 
 ## Notes
 
-- The frontend is built with `VITE_API_BASE_URL=/api`, so browser requests stay on the same origin and Caddy forwards `/api/*` to the backend.
+- The frontend is built with `VITE_API_BASE_URL=https://api.waybills.orctatech.com`, so browser requests go directly to the API domain.
 - The frontend container also uses Caddy internally as a simple static file server for the built SPA.
-- `APP_ORIGIN` in `backend.env` must match the public app URL.
-- The backend and frontend are not published directly on host ports; Caddy should be the public entry point.
+- Docker publishes the services only on `127.0.0.1`, so host Caddy can reach them while they stay off the public interface.
+- `APP_ORIGIN` in `backend.env` must match the frontend origin, which is `https://waybills.orctatech.com`.
+- The backend joins `orcta_net` only so it can reach a PostgreSQL service there; host Caddy does not need that network.
+- Caddy should remain the public entry point.

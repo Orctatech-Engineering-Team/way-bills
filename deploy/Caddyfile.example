@@ -1,12 +1,10 @@
-{$APP_DOMAIN} {
+{$FRONTEND_DOMAIN} {
   encode zstd gzip
 
-  handle_path /api/* {
-    reverse_proxy waybills-backend:3001
-  }
-
-  handle {
-    reverse_proxy waybills-frontend:80
-  }
+  reverse_proxy 127.0.0.1:{$FRONTEND_BIND_PORT}
 }
 
+{$API_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:{$BACKEND_BIND_PORT}
+}
