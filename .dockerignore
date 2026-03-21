@@ -1,4 +1,5 @@
 .git
+.github
 .gitignore
 .DS_Store
 node_modules
@@ -9,6 +10,11 @@ coverage
 tmp
 .env
 .env.*
+deploy
+docs
+apps/*/.env
+apps/*/.env.*
 apps/*/node_modules
 apps/*/dist
-
+packages/*/node_modules
+packages/*/dist

@@ -82,6 +82,21 @@ This creates the admin if the phone does not exist yet, or refreshes the passwor
 - `bash deploy/deploy.sh logs`: tail service logs
 - `bash deploy/deploy.sh pull-up`: pull images, restart, and migrate
 
+## GitHub Actions
+
+The repo includes a single CI/CD workflow at `.github/workflows/ci-cd.yml`.
+
+- Pull requests run workspace verification and Docker image builds.
+- Pushes to `main` run the same checks and then deploy to the VPS over SSH.
+
+Set these GitHub secrets before enabling deployment:
+
+- `VPS_HOST`
+- `VPS_USER`
+- `VPS_PORT`
+- `VPS_SSH_KEY`
+- `VPS_APP_DIR`
+
 ## Notes
 
 - The frontend is built with `VITE_API_BASE_URL=https://api.waybills.orctatech.com`, so browser requests go directly to the API domain.
