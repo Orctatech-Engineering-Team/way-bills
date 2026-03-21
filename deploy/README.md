@@ -58,12 +58,26 @@ docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --
 docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --rm backend bun run db:seed
 ```
 
+## Bootstrap the first admin
+
+If you want production credentials without loading demo seed data, create the first admin like this:
+
+```bash
+BOOTSTRAP_ADMIN_NAME="Admin User" \
+BOOTSTRAP_ADMIN_PHONE="+233200000001" \
+BOOTSTRAP_ADMIN_PASSWORD="replace-with-a-strong-password" \
+bash deploy/deploy.sh bootstrap-admin
+```
+
+This creates the admin if the phone does not exist yet, or refreshes the password and name if that phone already belongs to an admin account.
+
 ## Helper script
 
 `deploy/deploy.sh` wraps the common deployment tasks:
 
 - `bash deploy/deploy.sh up`: build, start, and migrate
 - `bash deploy/deploy.sh migrate`: run migrations only
+- `bash deploy/deploy.sh bootstrap-admin`: create or refresh the initial admin account
 - `bash deploy/deploy.sh seed`: run seed data
 - `bash deploy/deploy.sh logs`: tail service logs
 - `bash deploy/deploy.sh pull-up`: pull images, restart, and migrate

@@ -38,6 +38,7 @@ Usage: deploy/deploy.sh <command>
 Commands:
   up       Build and start the stack, then run database migrations.
   migrate  Run database migrations against the backend service.
+  bootstrap-admin  Create or refresh the initial admin account using BOOTSTRAP_ADMIN_* env vars.
   seed     Run the backend seed script.
   logs     Tail logs from all services.
   pull-up  Pull latest images in the compose stack, then start and migrate.
@@ -53,6 +54,16 @@ case "${command}" in
     ;;
   migrate)
     compose run --rm backend bun run db:migrate
+    ;;
+  bootstrap-admin)
+    : "${BOOTSTRAP_ADMIN_NAME:?BOOTSTRAP_ADMIN_NAME must be set}"
+    : "${BOOTSTRAP_ADMIN_PHONE:?BOOTSTRAP_ADMIN_PHONE must be set}"
+    : "${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD must be set}"
+    compose run --rm \
+      -e BOOTSTRAP_ADMIN_NAME \
+      -e BOOTSTRAP_ADMIN_PHONE \
+      -e BOOTSTRAP_ADMIN_PASSWORD \
+      backend bun run db:bootstrap-admin
     ;;
   seed)
     compose run --rm backend bun run db:seed
