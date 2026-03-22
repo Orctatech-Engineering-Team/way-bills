@@ -18,7 +18,15 @@ app.use('*', logger(), withErrorHandling)
 app.use(
   '*',
   cors({
-    origin: config.appOrigin,
+    origin: (requestOrigin) => {
+      if (!requestOrigin) {
+        return config.appOrigin
+      }
+
+      return config.allowedAppOrigins.includes(requestOrigin)
+        ? requestOrigin
+        : config.appOrigin
+    },
     credentials: true,
   }),
 )

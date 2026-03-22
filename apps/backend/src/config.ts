@@ -18,6 +18,7 @@ const DEFAULTS = {
 export type AppConfig = {
   appEnv: string
   appOrigin: string
+  allowedAppOrigins: string[]
   apiPort: number
   databaseUrl: string
   jwtSecret: string
@@ -32,9 +33,40 @@ export type AppConfig = {
   seedDefaultPassword: string
 }
 
+function expandLoopbackOrigin(origin: string) {
+  try {
+    const url = new URL(origin)
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+      return [origin]
+    }
+
+    const hosts = ['localhost', '127.0.0.1']
+    return hosts.map(
+      (host) => `${url.protocol}//${host}${url.port ? `:${url.port}` : ''}`,
+    )
+  } catch {
+    return [origin]
+  }
+}
+
+function resolveAllowedAppOrigins() {
+  const configuredOrigins = (Bun.env.APP_ORIGIN ?? DEFAULTS.appOrigin)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  const expandedOrigins =
+    (Bun.env.APP_ENV ?? DEFAULTS.appEnv) === 'production'
+      ? configuredOrigins
+      : configuredOrigins.flatMap(expandLoopbackOrigin)
+
+  return [...new Set(expandedOrigins)]
+}
+
 export const config: AppConfig = {
   appEnv: Bun.env.APP_ENV ?? DEFAULTS.appEnv,
   appOrigin: Bun.env.APP_ORIGIN ?? DEFAULTS.appOrigin,
+  allowedAppOrigins: resolveAllowedAppOrigins(),
   apiPort: Number(Bun.env.API_PORT ?? DEFAULTS.apiPort),
   databaseUrl: Bun.env.DATABASE_URL ?? DEFAULTS.databaseUrl,
   jwtSecret: Bun.env.JWT_SECRET ?? DEFAULTS.jwtSecret,

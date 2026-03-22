@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
-COMPOSE_ENV_FILE="${SCRIPT_DIR}/compose.env"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.local.yml"
+COMPOSE_ENV_FILE="${SCRIPT_DIR}/compose.local.env"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required but not installed." >&2
@@ -12,12 +12,12 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "${COMPOSE_ENV_FILE}" ]]; then
-  echo "Missing ${COMPOSE_ENV_FILE}. Copy deploy/compose.env.example first." >&2
+  echo "Missing ${COMPOSE_ENV_FILE}. Copy deploy/compose.local.env.example first." >&2
   exit 1
 fi
 
-if [[ ! -f "${SCRIPT_DIR}/backend.env" ]]; then
-  echo "Missing ${SCRIPT_DIR}/backend.env. Copy deploy/backend.env.example first." >&2
+if [[ ! -f "${SCRIPT_DIR}/backend.local.env" ]]; then
+  echo "Missing ${SCRIPT_DIR}/backend.local.env. Copy deploy/backend.local.env.example first." >&2
   exit 1
 fi
 
@@ -33,15 +33,15 @@ compose() {
 
 usage() {
   cat <<'EOF'
-Usage: deploy/deploy.sh <command>
+Usage: deploy/local-preview.sh <command>
 
 Commands:
-  up       Build and start the stack, then run database migrations.
-  migrate  Run database migrations against the backend service.
+  up       Build and start the local preview stack, then run database migrations.
+  migrate  Run database migrations against the local backend service.
   bootstrap-admin  Create or refresh the initial admin account using BOOTSTRAP_ADMIN_* env vars.
-  seed     Run the backend seed script.
-  logs     Tail logs from all services.
-  pull-up  Pull latest images in the compose stack, then start and migrate.
+  seed     Run local seed data.
+  logs     Tail local stack logs.
+  down     Stop the local preview stack.
 EOF
 }
 
@@ -71,10 +71,8 @@ case "${command}" in
   logs)
     compose logs -f
     ;;
-  pull-up)
-    compose pull
-    compose up -d
-    compose run --rm backend bun run --cwd apps/backend db:migrate
+  down)
+    compose down
     ;;
   *)
     usage

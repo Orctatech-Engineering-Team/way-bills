@@ -46,6 +46,37 @@ Or use the helper script:
 bash deploy/deploy.sh up
 ```
 
+## Local Docker preview
+
+If you want to inspect changes locally before pushing, use the dedicated local preview stack:
+
+```bash
+cp deploy/backend.local.env.example deploy/backend.local.env
+cp deploy/compose.local.env.example deploy/compose.local.env
+bash deploy/local-preview.sh up
+```
+
+That gives you:
+
+- frontend on `http://127.0.0.1:3000`
+- backend on `http://127.0.0.1:3001`
+- local PostgreSQL on `127.0.0.1:54329`
+
+For a quick local login without demo seed data:
+
+```bash
+BOOTSTRAP_ADMIN_NAME="Admin User" \
+BOOTSTRAP_ADMIN_PHONE="+233200000001" \
+BOOTSTRAP_ADMIN_PASSWORD="ChangeMe123!" \
+bash deploy/local-preview.sh bootstrap-admin
+```
+
+If you want the full demo dataset locally:
+
+```bash
+bash deploy/local-preview.sh seed
+```
+
 ## Run database migrations
 
 ```bash
@@ -82,6 +113,14 @@ This creates the admin if the phone does not exist yet, or refreshes the passwor
 - `bash deploy/deploy.sh logs`: tail service logs
 - `bash deploy/deploy.sh pull-up`: pull images, restart, and migrate
 
+The local preview helper mirrors the same flow:
+
+- `bash deploy/local-preview.sh up`
+- `bash deploy/local-preview.sh bootstrap-admin`
+- `bash deploy/local-preview.sh seed`
+- `bash deploy/local-preview.sh logs`
+- `bash deploy/local-preview.sh down`
+
 ## GitHub Actions
 
 The repo includes a single CI/CD workflow at `.github/workflows/ci-cd.yml`.
@@ -105,3 +144,5 @@ Set these GitHub secrets before enabling deployment:
 - `APP_ORIGIN` in `backend.env` must match the frontend origin, which is `https://waybills.orctatech.com`.
 - The backend joins `orcta_net` only so it can reach a PostgreSQL service there; host Caddy does not need that network.
 - Caddy should remain the public entry point.
+- Local Docker preview works without `orcta_net`; it uses its own Postgres service.
+- Upload-dependent flows still need real R2 env values. If you leave the local R2 vars blank, the rest of the app can still be inspected, but media uploads and generated file storage will fail.
