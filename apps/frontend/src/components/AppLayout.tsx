@@ -1,10 +1,11 @@
 import { Link, Navigate, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, LogOut, Menu, Package2, X } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Package2, Palette, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import type { UserRole } from '../lib/types'
 import { defaultRouteForRole } from '../lib/utils'
+import { useTheme } from '../theme/ThemeProvider'
 
 function navItemsForRole(role: UserRole) {
   if (role === 'rider') {
@@ -24,7 +25,7 @@ function navItemsForRole(role: UserRole) {
 
   if (role === 'admin') {
     items.push({ to: '/admin/users', label: 'Users' })
-    items.push({ to: '/admin/riders', label: 'Riders' })
+    items[1] = { to: '/admin/riders', label: 'Riders' }
   }
 
   return items
@@ -61,6 +62,7 @@ export function ProtectedScreen({
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const theme = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -188,6 +190,37 @@ export function ProtectedScreen({
                       <p className="identity-copy">{auth.user.phone}</p>
                     </div>
                     <div className="account-dropdown-divider" />
+                    <div className="account-dropdown-section">
+                      <div className="theme-section-header">
+                        <p className="account-dropdown-label">Workspace theme</p>
+                        <Palette size={14} strokeWidth={2} />
+                      </div>
+                      <div className="theme-switcher" role="radiogroup" aria-label="Theme selector">
+                        {theme.options.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className={`theme-chip ${theme.theme === option.id ? 'is-active' : ''}`}
+                            onClick={() => theme.setTheme(option.id)}
+                            role="radio"
+                            aria-checked={theme.theme === option.id}
+                            aria-label={option.label}
+                            title={option.label}
+                          >
+                            <span className="theme-chip-swatches" aria-hidden="true">
+                              {option.swatches.map((color) => (
+                                <span
+                                  key={`${option.id}-${color}`}
+                                  className="theme-chip-dot"
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="account-dropdown-divider" />
                     <button
                       type="button"
                       onClick={() => void auth.logout()}
@@ -270,6 +303,36 @@ export function ProtectedScreen({
                   <span className="identity-role">{auth.user.role}</span>
                   <p className="identity-name">{auth.user.name}</p>
                   <p className="identity-copy">{auth.user.phone}</p>
+                </div>
+                <div className="mobile-theme-block">
+                  <div className="theme-section-header">
+                    <p className="account-dropdown-label">Workspace theme</p>
+                    <Palette size={14} strokeWidth={2} />
+                  </div>
+                  <div className="theme-switcher" role="radiogroup" aria-label="Theme selector">
+                    {theme.options.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={`theme-chip ${theme.theme === option.id ? 'is-active' : ''}`}
+                        onClick={() => theme.setTheme(option.id)}
+                        role="radio"
+                        aria-checked={theme.theme === option.id}
+                        aria-label={option.label}
+                        title={option.label}
+                      >
+                        <span className="theme-chip-swatches" aria-hidden="true">
+                          {option.swatches.map((color) => (
+                            <span
+                              key={`${option.id}-${color}`}
+                              className="theme-chip-dot"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <button
                   type="button"

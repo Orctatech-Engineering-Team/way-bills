@@ -74,6 +74,8 @@ export type WaybillSummary = {
   orderReference: string
   clientId: string | null
   clientName?: string | null
+  entryMode: 'live' | 'historical'
+  deliveryProofMethod: 'signature' | 'receipt_photo'
   customerName: string | null
   customerPhone: string
   deliveryAddress: string
@@ -115,6 +117,7 @@ export type WeeklyReportItem = {
   waybillId: string
   waybillNumber: string
   orderReference: string
+  entryMode: 'live' | 'historical'
   customerName: string | null
   riderId: string | null
   riderName: string | null
@@ -142,6 +145,7 @@ export type BillingReportItem = {
   waybillId: string
   waybillNumber: string
   orderReference: string
+  entryMode: 'live' | 'historical'
   clientId: string | null
   clientName: string | null
   customerName: string | null
@@ -193,6 +197,7 @@ export type InvoiceItem = {
   id: string
   invoiceId: string
   waybillId: string
+  entryMode: 'live' | 'historical'
   amountCents: number
   pricingTier: 'standard' | 'overflow'
   createdAt: string

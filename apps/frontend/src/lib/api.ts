@@ -18,33 +18,57 @@ export const API_BASE_URL =
 
 export class ApiError extends Error {
   status: number
+  code?: string
   details?: unknown
 
-  constructor(status: number, message: string, details?: unknown) {
+  constructor(status: number, message: string, details?: unknown, code?: string) {
     super(message)
     this.status = status
+    this.code = code
     this.details = details
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+    })
+  } catch (error) {
+    throw new ApiError(
+      0,
+      'Unable to reach the server. Check your connection or confirm the backend is running.',
+      error instanceof Error ? { cause: error.message } : undefined,
+      'network_error',
+    )
+  }
 
   const hasBody = response.status !== 204
-  const payload = hasBody ? await response.json().catch(() => null) : null
+  const rawBody = hasBody ? await response.text().catch(() => '') : ''
+  let payload: any = null
+
+  if (rawBody) {
+    try {
+      payload = JSON.parse(rawBody)
+    } catch {
+      payload = null
+    }
+  }
 
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      payload?.error?.message ?? 'Request failed.',
+      payload?.error?.message ??
+        (rawBody || `${response.status} ${response.statusText || 'Request failed.'}`),
       payload?.error?.details,
+      payload?.error?.code,
     )
   }
 
@@ -110,11 +134,13 @@ export const api = {
     status?: string
     search?: string
     riderId?: string
+    entryMode?: 'live' | 'historical'
   }) {
     const search = new URLSearchParams()
     if (params?.status) search.set('status', params.status)
     if (params?.search) search.set('search', params.search)
     if (params?.riderId) search.set('rider_id', params.riderId)
+    if (params?.entryMode) search.set('entry_mode', params.entryMode)
     const suffix = search.size > 0 ? `?${search.toString()}` : ''
     return request<{ items: WaybillSummary[]; total: number }>(`/waybills${suffix}`)
   },
@@ -124,12 +150,15 @@ export const api = {
   async createWaybill(input: {
     orderReference: string
     clientId: string
+    entryMode?: 'live' | 'historical'
     customerName?: string | null
     customerPhone: string
     deliveryAddress: string
     deliveryMethod: 'cash' | 'momo' | 'card' | 'bank_transfer' | 'other'
     itemValueCents?: number | null
     receiptImageDataUrl?: string | null
+    dispatchTime?: string | null
+    completionTime?: string | null
     notes?: string | null
   }) {
     return request<{ waybill: WaybillDetail }>('/waybills', {
@@ -218,12 +247,14 @@ export const api = {
     start: string
     end: string
     riderId?: string
+    entryMode?: 'live' | 'historical'
   }) {
     const search = new URLSearchParams({
       start: input.start,
       end: input.end,
     })
     if (input.riderId) search.set('rider_id', input.riderId)
+    if (input.entryMode) search.set('entry_mode', input.entryMode)
     return request<WeeklyReportResponse>(`/reports/weekly?${search.toString()}`)
   },
   async listClients(params?: { active?: boolean }) {
@@ -289,6 +320,7 @@ export const api = {
     end: string
     clientId?: string
     invoiceStatus?: 'uninvoiced'
+    entryMode?: 'live' | 'historical'
   }) {
     const search = new URLSearchParams({
       start: input.start,
@@ -296,6 +328,7 @@ export const api = {
     })
     if (input.clientId) search.set('client_id', input.clientId)
     if (input.invoiceStatus) search.set('invoice_status', input.invoiceStatus)
+    if (input.entryMode) search.set('entry_mode', input.entryMode)
     return request<BillingReportResponse>(`/reports/billing-summary?${search.toString()}`)
   },
 }

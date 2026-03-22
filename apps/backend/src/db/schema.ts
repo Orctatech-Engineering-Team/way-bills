@@ -109,6 +109,10 @@ export const waybills = pgTable(
     customerPhone: text('customer_phone').notNull(),
     deliveryAddress: text('delivery_address').notNull(),
     deliveryMethod: text('delivery_method').notNull().default('cash'),
+    entryMode: text('entry_mode').notNull().default('live'),
+    deliveryProofMethod: text('delivery_proof_method')
+      .notNull()
+      .default('signature'),
     billableAmountCents: integer('billable_amount_cents').notNull().default(0),
     itemValueCents: integer('item_value_cents'),
     receiptImageUrl: text('receipt_image_url'),

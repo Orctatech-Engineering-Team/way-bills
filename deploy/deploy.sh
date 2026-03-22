@@ -50,15 +50,18 @@ command="${1:-up}"
 case "${command}" in
   up)
     compose up -d --build
+    compose --profile ops build backend-ops
     compose --profile ops run --rm backend-ops bun run --cwd apps/backend db:migrate
     ;;
   migrate)
+    compose --profile ops build backend-ops
     compose --profile ops run --rm backend-ops bun run --cwd apps/backend db:migrate
     ;;
   bootstrap-admin)
     : "${BOOTSTRAP_ADMIN_NAME:?BOOTSTRAP_ADMIN_NAME must be set}"
     : "${BOOTSTRAP_ADMIN_PHONE:?BOOTSTRAP_ADMIN_PHONE must be set}"
     : "${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD must be set}"
+    compose --profile ops build backend-ops
     compose --profile ops run --rm \
       -e BOOTSTRAP_ADMIN_NAME \
       -e BOOTSTRAP_ADMIN_PHONE \
@@ -66,6 +69,7 @@ case "${command}" in
       backend-ops bun run --cwd apps/backend db:bootstrap-admin
     ;;
   seed)
+    compose --profile ops build backend-ops
     compose --profile ops run --rm backend-ops bun run --cwd apps/backend db:seed
     ;;
   logs)
@@ -74,6 +78,7 @@ case "${command}" in
   pull-up)
     compose pull
     compose up -d
+    compose --profile ops build backend-ops
     compose --profile ops run --rm backend-ops bun run --cwd apps/backend db:migrate
     ;;
   *)

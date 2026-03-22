@@ -43,12 +43,15 @@ import {
 const createWaybillSchema = z.object({
   orderReference: z.string().min(2),
   clientId: z.string().min(1),
+  entryMode: z.enum(['live', 'historical']).default('live'),
   customerName: z.string().min(2).nullable().optional(),
   customerPhone: z.string().min(3),
   deliveryAddress: z.string().min(5),
   deliveryMethod: z.enum(['cash', 'momo', 'card', 'bank_transfer', 'other']),
   itemValueCents: z.number().int().min(0).nullable().optional(),
   receiptImageDataUrl: z.string().min(20).optional(),
+  dispatchTime: z.string().datetime().nullable().optional(),
+  completionTime: z.string().datetime().nullable().optional(),
   notes: z.string().nullable().optional(),
 })
 
@@ -231,6 +234,8 @@ async function getWaybillDetail(id: string, currentUser: AppVariables['user']) {
         }
       : null,
     pod,
+    entryMode: waybill.entryMode,
+    deliveryProofMethod: waybill.deliveryProofMethod,
     handovers,
     statusLogs: logs,
   }
@@ -339,18 +344,65 @@ waybillRoutes.post('/', async (c) => {
     currentUser.role === 'rider',
     new AppError(403, 'forbidden', 'Only riders can create waybills.'),
   )
-  await assertActiveRiderShift(currentUser.id)
 
   const input = await parseJson(c, createWaybillSchema.parse)
+  if (input.entryMode === 'live') {
+    await assertActiveRiderShift(currentUser.id)
+  }
   const [summary] = await db.select({ count: count() }).from(waybills)
   let receiptImageUrl: string | null = null
   let receiptImageMimeType: string | null = null
+  const historicalCompletionAt =
+    input.entryMode === 'historical' && input.completionTime
+      ? new Date(input.completionTime)
+      : null
+  const historicalDispatchAt =
+    input.entryMode === 'historical'
+      ? input.dispatchTime
+        ? new Date(input.dispatchTime)
+        : historicalCompletionAt
+      : null
 
   if (input.clientId) {
     const client = await db.query.clients.findFirst({
       where: eq(clients.id, input.clientId),
     })
     assert(client, new AppError(404, 'not_found', 'Client not found.'))
+  }
+
+  if (input.entryMode === 'historical') {
+    assert(
+      Boolean(input.receiptImageDataUrl),
+      new AppError(
+        400,
+        'receipt_required',
+        'A receipt photo is required for historical delivery records.',
+      ),
+    )
+    assert(
+      historicalCompletionAt && !Number.isNaN(historicalCompletionAt.getTime()),
+      new AppError(
+        400,
+        'completion_time_required',
+        'Completion time is required for historical delivery records.',
+      ),
+    )
+    assert(
+      !historicalDispatchAt || !Number.isNaN(historicalDispatchAt.getTime()),
+      new AppError(
+        400,
+        'invalid_dispatch_time',
+        'Dispatch time must be a valid date when provided.',
+      ),
+    )
+    assert(
+      !historicalDispatchAt || historicalDispatchAt.getTime() <= historicalCompletionAt.getTime(),
+      new AppError(
+        400,
+        'invalid_historical_times',
+        'Dispatch time cannot be after completion time.',
+      ),
+    )
   }
 
   if (input.receiptImageDataUrl) {
@@ -373,29 +425,69 @@ waybillRoutes.post('/', async (c) => {
     customerPhone: input.customerPhone,
     deliveryAddress: input.deliveryAddress,
     deliveryMethod: input.deliveryMethod,
+    entryMode: input.entryMode,
+    deliveryProofMethod:
+      input.entryMode === 'historical' ? 'receipt_photo' : 'signature',
     itemValueCents: input.itemValueCents ?? null,
     receiptImageUrl,
     receiptImageMimeType,
     notes: input.notes ?? null,
     requestedDispatchTime: null,
-    dispatchTime: null,
+    dispatchTime: historicalDispatchAt,
+    completionTime: historicalCompletionAt,
     assignedRiderId: currentUser.id,
     createdBy: currentUser.id,
     createdAt: now,
     updatedAt: now,
-    status: 'assigned' as WaybillStatus,
+    status:
+      input.entryMode === 'historical'
+        ? ('delivered' as WaybillStatus)
+        : ('assigned' as WaybillStatus),
   }
 
   await db.insert(waybills).values(waybill)
-  await db.insert(statusLogs).values({
-    id: crypto.randomUUID(),
-    waybillId: waybill.id,
-    fromStatus: 'created',
-    toStatus: 'assigned',
-    changedBy: currentUser.id,
-    changedAt: now,
-    note: 'Created by rider and queued for dispatch.',
-  })
+  if (input.entryMode === 'historical' && historicalCompletionAt) {
+    const dispatchLoggedAt = historicalDispatchAt ?? historicalCompletionAt
+    await db.insert(statusLogs).values([
+      {
+        id: crypto.randomUUID(),
+        waybillId: waybill.id,
+        fromStatus: 'created',
+        toStatus: 'assigned',
+        changedBy: currentUser.id,
+        changedAt: now,
+        note: 'Created as a historical delivery record.',
+      },
+      {
+        id: crypto.randomUUID(),
+        waybillId: waybill.id,
+        fromStatus: 'assigned',
+        toStatus: 'dispatched',
+        changedBy: currentUser.id,
+        changedAt: dispatchLoggedAt,
+        note: 'Historical dispatch recorded from a previous manual delivery.',
+      },
+      {
+        id: crypto.randomUUID(),
+        waybillId: waybill.id,
+        fromStatus: 'dispatched',
+        toStatus: 'delivered',
+        changedBy: currentUser.id,
+        changedAt: historicalCompletionAt,
+        note: 'Historical delivery closed using receipt-photo proof.',
+      },
+    ])
+  } else {
+    await db.insert(statusLogs).values({
+      id: crypto.randomUUID(),
+      waybillId: waybill.id,
+      fromStatus: 'created',
+      toStatus: 'assigned',
+      changedBy: currentUser.id,
+      changedAt: now,
+      note: 'Created by rider and queued for dispatch.',
+    })
+  }
 
   const detail = await getWaybillDetail(waybill.id, currentUser)
   return c.json({ waybill: detail }, 201)
@@ -459,6 +551,7 @@ waybillRoutes.get('/', async (c) => {
   const status = c.req.query('status')
   const search = c.req.query('search')
   const assignedRiderId = c.req.query('rider_id')
+  const entryMode = c.req.query('entry_mode')
   const conditions = []
 
   if (currentUser.role === 'rider') {
@@ -472,6 +565,10 @@ waybillRoutes.get('/', async (c) => {
 
   if (assignedRiderId) {
     conditions.push(eq(waybills.assignedRiderId, assignedRiderId))
+  }
+
+  if (entryMode === 'live' || entryMode === 'historical') {
+    conditions.push(eq(waybills.entryMode, entryMode))
   }
 
   if (search) {
@@ -497,6 +594,8 @@ waybillRoutes.get('/', async (c) => {
       customerPhone: waybills.customerPhone,
       deliveryAddress: waybills.deliveryAddress,
       deliveryMethod: waybills.deliveryMethod,
+      entryMode: waybills.entryMode,
+      deliveryProofMethod: waybills.deliveryProofMethod,
       itemValueCents: waybills.itemValueCents,
       assignedRiderId: waybills.assignedRiderId,
       status: waybills.status,

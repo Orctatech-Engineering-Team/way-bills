@@ -67,6 +67,24 @@ export function deliveryMethodLabel(value: string | null | undefined) {
   return value.replaceAll('_', ' ')
 }
 
+export function entryModeLabel(value: 'live' | 'historical' | null | undefined) {
+  if (value === 'historical') {
+    return 'Historical record'
+  }
+
+  return 'Live dispatch'
+}
+
+export function deliveryProofMethodLabel(
+  value: 'signature' | 'receipt_photo' | null | undefined,
+) {
+  if (value === 'receipt_photo') {
+    return 'Receipt photo'
+  }
+
+  return 'Recipient signature'
+}
+
 export function formatMoney(amountCents: number, currency = 'GHS') {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
@@ -104,4 +122,38 @@ export function centsFromMajorInput(value: string) {
   const fractionAmount = Number(fraction.padEnd(2, '0').slice(0, 2))
 
   return wholeAmount * 100 + fractionAmount
+}
+
+export function localDateTimeInputValue(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, '0')
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+export function dateTimeLocalInputFromIso(value: string | null | undefined) {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return localDateTimeInputValue(date)
+}
+
+export function isoFromDateTimeLocalInput(value: string | null | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toISOString()
 }

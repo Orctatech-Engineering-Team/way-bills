@@ -7,6 +7,7 @@ import { errorMessageFrom } from '../lib/feedback'
 import type { Client, InvoiceDetail, InvoiceStatus, InvoiceSummary } from '../lib/types'
 import {
   dateInputValue,
+  entryModeLabel,
   endOfBillingWeek,
   formatDate,
   formatMoney,
@@ -95,11 +96,11 @@ export function InvoicesPage() {
   const [items, setItems] = useState<InvoiceSummary[]>([])
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null)
   const [filters, setFilters] = useState({ clientId: '', status: '' })
+  const [selectedEntryMode, setSelectedEntryMode] = useState('')
   const [form, setForm] = useState<InvoiceFormState>(buildInitialForm())
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [error, setError] = useState('')
 
   function exportInvoiceRegister() {
     const csv = buildCsv(
@@ -124,11 +125,12 @@ export function InvoicesPage() {
     }
 
     const csv = buildCsv(
-      ['Invoice', 'Waybill', 'Order Reference', 'Recipient', 'Completed', 'Tier', 'Amount'],
+      ['Invoice', 'Waybill', 'Order Reference', 'Record Type', 'Recipient', 'Completed', 'Tier', 'Amount'],
       selectedInvoice.items.map((item) => [
         selectedInvoice.invoiceNumber,
         item.waybillNumber,
         item.orderReference,
+        entryModeLabel(item.entryMode),
         formatValue(item.customerName, 'No recipient name'),
         formatDate(item.completionTime),
         item.pricingTier,
@@ -140,7 +142,6 @@ export function InvoicesPage() {
 
   async function load(selectedId?: string | null) {
     setLoading(true)
-    setError('')
 
     try {
       const [clientResponse, invoiceResponse] = await Promise.all([
@@ -161,7 +162,11 @@ export function InvoicesPage() {
         setSelectedInvoice(null)
       }
     } catch (caughtError) {
-      setError(errorMessageFrom(caughtError, 'Unable to load invoices.'))
+      showToast({
+        tone: 'error',
+        title: 'Invoices failed to load',
+        message: errorMessageFrom(caughtError, 'Unable to load invoices.'),
+      })
     } finally {
       setLoading(false)
     }
@@ -174,7 +179,11 @@ export function InvoicesPage() {
       const response = await api.getInvoice(id)
       setSelectedInvoice(response.invoice)
     } catch (caughtError) {
-      setError(errorMessageFrom(caughtError, 'Unable to load invoice detail.'))
+      showToast({
+        tone: 'error',
+        title: 'Invoice detail failed to load',
+        message: errorMessageFrom(caughtError, 'Unable to load invoice detail.'),
+      })
     } finally {
       setDetailLoading(false)
     }
@@ -187,7 +196,6 @@ export function InvoicesPage() {
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCreating(true)
-    setError('')
 
     try {
       const response = await api.createInvoice({
@@ -207,7 +215,6 @@ export function InvoicesPage() {
       await load(response.invoice.id)
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to generate invoice.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Invoice generation failed',
@@ -233,7 +240,6 @@ export function InvoicesPage() {
       await load(selectedInvoice.id)
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to update invoice status.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Invoice update failed',
@@ -243,6 +249,12 @@ export function InvoicesPage() {
   }
 
   const totalValue = items.reduce((sum, item) => sum + item.subtotalCents, 0)
+  const visibleInvoiceItems = selectedInvoice
+    ? selectedInvoice.items.filter((item) =>
+        selectedEntryMode === 'live' || selectedEntryMode === 'historical'
+          ? item.entryMode === selectedEntryMode
+          : true)
+    : []
 
   return (
     <ProtectedScreen
@@ -250,7 +262,6 @@ export function InvoicesPage() {
       title="Invoices"
       subtitle="Generate client invoices from delivered waybills, review line items, and mark payment state."
     >
-      {error ? <div className="alert error">{error}</div> : null}
       {!loading && items.length > 0 ? (
         <div className="alert info">
           Use the previous-week defaults to generate client invoices on a weekly rhythm, then export or email the result for accounting.
@@ -539,6 +550,30 @@ export function InvoicesPage() {
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
+              <label className="field-stack">
+                <span className="app-label">Line item type</span>
+                <select
+                  value={selectedEntryMode}
+                  onChange={(event) => setSelectedEntryMode(event.target.value)}
+                  className="app-select"
+                >
+                  <option value="">All line items</option>
+                  <option value="live">Live dispatch only</option>
+                  <option value="historical">Historical only</option>
+                </select>
+              </label>
+              <div className="info-strip compact">
+                <p className="app-label">Invoice review</p>
+                <p className="info-strip-title">
+                  {visibleInvoiceItems.length} visible line item{visibleInvoiceItems.length === 1 ? '' : 's'}
+                </p>
+                <p className="info-strip-copy">
+                  Filter the invoice detail to isolate historical backfilled deliveries from live signed deliveries before export or client review.
+                </p>
+              </div>
+            </div>
+
             <div className="action-cluster">
               {selectedInvoice.status !== 'paid' ? (
                 <button type="button" className="btn-primary" onClick={() => void changeStatus('paid')}>
@@ -557,6 +592,7 @@ export function InvoicesPage() {
                 <thead>
                   <tr>
                     <th>Waybill</th>
+                    <th>Record type</th>
                     <th>Recipient</th>
                     <th>Completed</th>
                     <th>Tier</th>
@@ -564,7 +600,7 @@ export function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedInvoice.items.map((item) => (
+                  {visibleInvoiceItems.map((item) => (
                     <tr key={item.id}>
                       <td>
                         <p className="font-['Manrope'] font-extrabold text-[var(--primary)]">
@@ -572,6 +608,7 @@ export function InvoicesPage() {
                         </p>
                         <p className="mt-1 text-[var(--surface-muted)]">{item.orderReference}</p>
                       </td>
+                      <td className="text-[var(--surface-muted)]">{entryModeLabel(item.entryMode)}</td>
                       <td className="text-[var(--surface-muted)]">
                         {formatValue(item.customerName, 'No recipient name')}
                       </td>
@@ -582,6 +619,13 @@ export function InvoicesPage() {
                       </td>
                     </tr>
                   ))}
+                  {visibleInvoiceItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-[var(--surface-muted)]">
+                        No invoice line items match the current record-type filter.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>

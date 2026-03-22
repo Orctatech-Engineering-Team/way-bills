@@ -14,6 +14,7 @@ import type {
 } from '../lib/types'
 import {
   dateInputValue,
+  entryModeLabel,
   formatDate,
   formatDateTime,
   formatMoney,
@@ -56,6 +57,7 @@ export function ReportsPage() {
     end: dateInputValue(now),
     riderId: '',
     clientId: '',
+    entryMode: '',
     onlyUninvoiced: false,
   })
   const [riders, setRiders] = useState<User[]>([])
@@ -63,7 +65,6 @@ export function ReportsPage() {
   const [weeklyReport, setWeeklyReport] = useState<WeeklyReportResponse | null>(null)
   const [billingReport, setBillingReport] = useState<BillingReportResponse | null>(null)
   const [shiftReport, setShiftReport] = useState<ShiftReportResponse | null>(null)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   function exportCompletedDeliveries() {
@@ -72,10 +73,11 @@ export function ReportsPage() {
     }
 
     const csv = buildCsv(
-      ['Waybill', 'Order Reference', 'Recipient', 'Signed Recipient', 'Rider', 'Completed'],
+      ['Waybill', 'Order Reference', 'Record Type', 'Recipient', 'Signed Recipient', 'Rider', 'Completed'],
       weeklyReport.items.map((item) => [
         item.waybillNumber,
         item.orderReference,
+        entryModeLabel(item.entryMode),
         formatValue(item.customerName, 'No recipient name'),
         item.recipientName ?? '',
         item.riderName ?? 'Unassigned',
@@ -123,7 +125,6 @@ export function ReportsPage() {
 
   async function load() {
     setLoading(true)
-    setError('')
 
     try {
       const [weeklyResponse, billingResponse, shiftResponse, riderResponse, clientResponse] =
@@ -132,12 +133,20 @@ export function ReportsPage() {
             start: filters.start,
             end: filters.end,
             riderId: filters.riderId || undefined,
+            entryMode:
+              filters.entryMode === 'live' || filters.entryMode === 'historical'
+                ? filters.entryMode
+                : undefined,
           }),
           api.getBillingReport({
             start: filters.start,
             end: filters.end,
             clientId: filters.clientId || undefined,
             invoiceStatus: filters.onlyUninvoiced ? 'uninvoiced' : undefined,
+            entryMode:
+              filters.entryMode === 'live' || filters.entryMode === 'historical'
+                ? filters.entryMode
+                : undefined,
           }),
           api.getShiftReport({
             start: filters.start,
@@ -158,7 +167,6 @@ export function ReportsPage() {
         caughtError,
         'Unable to load the reports workspace.',
       )
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Reports failed to load',
@@ -174,6 +182,7 @@ export function ReportsPage() {
   }, [
     filters.clientId,
     filters.end,
+    filters.entryMode,
     filters.onlyUninvoiced,
     filters.riderId,
     filters.start,
@@ -185,7 +194,6 @@ export function ReportsPage() {
       title="Reports"
       subtitle="Review delivery execution and billable completion volume from one reporting surface."
     >
-      {error ? <div className="alert error">{error}</div> : null}
       {!loading && billingReport && billingReport.totals.uninvoicedAmountCents > 0 ? (
         <div className="alert info">
           {formatMoney(billingReport.totals.uninvoicedAmountCents)} remains uninvoiced in this window.
@@ -259,6 +267,21 @@ export function ReportsPage() {
                     {client.name}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            <label className="field-stack">
+              <span className="app-label">Record type</span>
+              <select
+                value={filters.entryMode}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, entryMode: event.target.value }))
+                }
+                className="app-select"
+              >
+                <option value="">All records</option>
+                <option value="live">Live dispatch only</option>
+                <option value="historical">Historical only</option>
               </select>
             </label>
 
@@ -407,6 +430,7 @@ export function ReportsPage() {
                 <thead>
                   <tr>
                     <th>Waybill</th>
+                    <th>Record type</th>
                     <th>Recipient</th>
                     <th>Rider</th>
                     <th>Completed</th>
@@ -421,6 +445,7 @@ export function ReportsPage() {
                         </p>
                         <p className="mt-1 text-[var(--surface-muted)]">{item.orderReference}</p>
                       </td>
+                      <td className="text-[var(--surface-muted)]">{entryModeLabel(item.entryMode)}</td>
                       <td className="text-[var(--surface-muted)]">
                         <p>{formatValue(item.customerName, 'No recipient name')}</p>
                         <p>{item.recipientName ?? 'Recipient not captured'}</p>
@@ -436,11 +461,14 @@ export function ReportsPage() {
             <div className="mobile-record-list mobile-only">
               {weeklyReport.items.map((item) => (
                 <div key={item.waybillId} className="mobile-record-card">
-                  <div>
-                    <p className="font-['Manrope'] text-sm font-extrabold text-[var(--primary)]">
-                      {item.waybillNumber}
-                    </p>
-                    <p className="mt-1 text-sm text-[var(--surface-muted)]">{item.orderReference}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-['Manrope'] text-sm font-extrabold text-[var(--primary)]">
+                        {item.waybillNumber}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--surface-muted)]">{item.orderReference}</p>
+                    </div>
+                    <span className="status-pill neutral">{entryModeLabel(item.entryMode)}</span>
                   </div>
                   <div className="mobile-record-row">
                     <div className="data-card">

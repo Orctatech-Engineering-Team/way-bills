@@ -20,10 +20,14 @@ import type {
 import {
   centsFromMajorInput,
   deliveryMethodLabel,
+  deliveryProofMethodLabel,
+  entryModeLabel,
   formatDate,
   formatDateTime,
   formatMoney,
   formatValue,
+  isoFromDateTimeLocalInput,
+  localDateTimeInputValue,
   sanitizeMoneyInput,
 } from '../lib/utils'
 
@@ -103,20 +107,21 @@ export function OpsWaybillListPage() {
   const [items, setItems] = useState<WaybillSummary[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [clientId, setClientId] = useState('')
+  const [entryMode, setEntryMode] = useState('')
 
   async function load() {
     setLoading(true)
-    setError('')
 
     try {
       const [waybillResponse, clientResponse] = await Promise.all([
         api.listWaybills({
           search: search || undefined,
           status: status || undefined,
+          entryMode:
+            entryMode === 'live' || entryMode === 'historical' ? entryMode : undefined,
         }),
         api.listClients({ active: true }),
       ])
@@ -129,7 +134,6 @@ export function OpsWaybillListPage() {
       setClients(clientResponse.items)
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to load waybills.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Waybills failed to load',
@@ -142,7 +146,7 @@ export function OpsWaybillListPage() {
 
   useEffect(() => {
     void load()
-  }, [clientId, search, status])
+  }, [clientId, entryMode, search, status])
 
   const totals = waybillStatusTotals(items)
 
@@ -202,9 +206,17 @@ export function OpsWaybillListPage() {
               </option>
             ))}
           </select>
+          <select
+            value={entryMode}
+            onChange={(event) => setEntryMode(event.target.value)}
+            className="app-select w-full md:min-w-[12rem]"
+          >
+            <option value="">All record types</option>
+            <option value="live">Live dispatch</option>
+            <option value="historical">Historical</option>
+          </select>
         </div>
 
-        {error ? <Message tone="error">{error}</Message> : null}
         {loading ? (
           loadingTable('Loading waybills...')
         ) : (
@@ -251,7 +263,12 @@ export function OpsWaybillListPage() {
                         {item.riderName ?? 'Unassigned'}
                       </td>
                       <td>
-                        <StatusBadge status={item.status} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge status={item.status} />
+                          {item.entryMode === 'historical' ? (
+                            <span className="status-pill neutral">Historical</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="text-[var(--surface-muted)]">
                         {formatDateTime(item.dispatchTime)}
@@ -287,7 +304,12 @@ export function OpsWaybillListPage() {
                       </p>
                       <p className="mt-1 text-sm text-[var(--surface-muted)]">{item.orderReference}</p>
                     </div>
-                    <StatusBadge status={item.status} />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <StatusBadge status={item.status} />
+                      {item.entryMode === 'historical' ? (
+                        <span className="status-pill neutral">Historical</span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="mobile-record-row">
                     <div className="data-card">
@@ -333,18 +355,20 @@ export function CreateWaybillPage() {
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
-  const [error, setError] = useState('')
   const [loadingClients, setLoadingClients] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitIntent, setSubmitIntent] = useState<'open' | 'add-another'>('open')
   const [form, setForm] = useState({
     orderReference: '',
     clientId: auth.user?.defaultClientId ?? '',
+    entryMode: 'live' as 'live' | 'historical',
     customerName: '',
     customerPhone: '',
     deliveryAddress: '',
     deliveryMethod: 'cash' as 'cash' | 'momo' | 'card' | 'bank_transfer' | 'other',
     itemValueCents: '',
+    dispatchTime: '',
+    completionTime: '',
     notes: '',
     receiptImageDataUrl: '',
     receiptImagePreviewUrl: '',
@@ -361,7 +385,11 @@ export function CreateWaybillPage() {
         }
       } catch (caughtError) {
         if (!cancelled) {
-          setError(errorMessageFrom(caughtError, 'Unable to load client accounts.'))
+          showToast({
+            tone: 'error',
+            title: 'Clients failed to load',
+            message: errorMessageFrom(caughtError, 'Unable to load client accounts.'),
+          })
         }
       } finally {
         if (!cancelled) {
@@ -388,12 +416,42 @@ export function CreateWaybillPage() {
 
   const selectedClient = clients.find((client) => client.id === form.clientId)
   const itemValueCurrency = selectedClient?.currency ?? 'GHS'
+  const historicalMode = form.entryMode === 'historical'
+
+  function switchEntryMode(nextMode: 'live' | 'historical') {
+    setForm((current) => {
+      if (current.entryMode === nextMode) {
+        return current
+      }
+
+      if (nextMode === 'historical') {
+        const defaultCompletion = current.completionTime || localDateTimeInputValue()
+        return {
+          ...current,
+          entryMode: nextMode,
+          dispatchTime: current.dispatchTime || defaultCompletion,
+          completionTime: defaultCompletion,
+        }
+      }
+
+      return {
+        ...current,
+        entryMode: nextMode,
+        dispatchTime: '',
+        completionTime: '',
+      }
+    })
+  }
 
   return (
     <ProtectedScreen
       roles={['rider']}
       title="New Delivery"
-      subtitle="Create and queue multiple waybills first, then dispatch them together when you are ready to leave."
+      subtitle={
+        historicalMode
+          ? 'Backfill completed deliveries from the old manual process using receipt-photo proof so they remain invoiceable and auditable.'
+          : 'Create and queue multiple waybills first, then dispatch them together when you are ready to leave.'
+      }
     >
       <div className="sheet-grid aside">
         <Panel title="Delivery details">
@@ -401,13 +459,34 @@ export function CreateWaybillPage() {
             className="grid gap-4 lg:grid-cols-2"
             onSubmit={async (event) => {
               event.preventDefault()
-              setError('')
+
+              if (historicalMode && !form.receiptImageDataUrl) {
+                const message = 'Attach the receipt image before saving a historical delivery.'
+                showToast({
+                  tone: 'warning',
+                  title: 'Receipt image required',
+                  message,
+                })
+                return
+              }
+
+              if (historicalMode && !form.completionTime) {
+                const message = 'Set the delivery time before saving a historical delivery.'
+                showToast({
+                  tone: 'warning',
+                  title: 'Delivery time required',
+                  message,
+                })
+                return
+              }
+
               setSubmitting(true)
 
               try {
                 const response = await api.createWaybill({
                   orderReference: form.orderReference,
                   clientId: form.clientId,
+                  entryMode: form.entryMode,
                   customerName: form.customerName || null,
                   customerPhone: form.customerPhone,
                   deliveryAddress: form.deliveryAddress,
@@ -416,13 +495,21 @@ export function CreateWaybillPage() {
                     ? centsFromMajorInput(form.itemValueCents)
                     : null,
                   receiptImageDataUrl: form.receiptImageDataUrl || undefined,
+                  dispatchTime: historicalMode
+                    ? isoFromDateTimeLocalInput(form.dispatchTime || form.completionTime)
+                    : null,
+                  completionTime: historicalMode
+                    ? isoFromDateTimeLocalInput(form.completionTime)
+                    : null,
                   notes: form.notes || null,
                 })
 
                 showToast({
                   tone: 'success',
-                  title: 'Waybill created',
-                  message: `${response.waybill.waybillNumber} was added to your dispatch queue.`,
+                  title: historicalMode ? 'Historical delivery saved' : 'Waybill created',
+                  message: historicalMode
+                    ? `${response.waybill.waybillNumber} was recorded as delivered and is ready for invoicing.`
+                    : `${response.waybill.waybillNumber} was added to your dispatch queue.`,
                 })
                 if (submitIntent === 'add-another') {
                   setForm((current) => ({
@@ -435,6 +522,14 @@ export function CreateWaybillPage() {
                     notes: '',
                     receiptImageDataUrl: '',
                     receiptImagePreviewUrl: '',
+                    dispatchTime:
+                      current.entryMode === 'historical'
+                        ? current.dispatchTime || localDateTimeInputValue()
+                        : '',
+                    completionTime:
+                      current.entryMode === 'historical'
+                        ? current.completionTime || localDateTimeInputValue()
+                        : '',
                   }))
                 } else {
                   await navigate({
@@ -447,7 +542,6 @@ export function CreateWaybillPage() {
                   caughtError,
                   'Unable to create the waybill.',
                 )
-                setError(message)
                 showToast({
                   tone: 'error',
                   title: 'Waybill creation failed',
@@ -458,6 +552,48 @@ export function CreateWaybillPage() {
               }
             }}
           >
+            <div className="field-stack lg:col-span-2">
+              <span className="app-label">Entry mode</span>
+              <div className="mode-switch" role="tablist" aria-label="Waybill entry mode">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={form.entryMode === 'live'}
+                  className={`mode-switch-option ${form.entryMode === 'live' ? 'active' : ''}`}
+                  onClick={() => switchEntryMode('live')}
+                >
+                  <span className="mode-switch-title">Live delivery</span>
+                  <span className="mode-switch-copy">
+                    Queue it now and complete it later with recipient signature.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={form.entryMode === 'historical'}
+                  className={`mode-switch-option ${form.entryMode === 'historical' ? 'active' : ''}`}
+                  onClick={() => switchEntryMode('historical')}
+                >
+                  <span className="mode-switch-title">Historical delivery</span>
+                  <span className="mode-switch-copy">
+                    Save a completed paper-era delivery using receipt-photo evidence.
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="info-strip lg:col-span-2">
+              <p className="app-label">Current flow</p>
+              <p className="info-strip-title">
+                {historicalMode ? 'Completed record import' : 'Route-day dispatch queue'}
+              </p>
+              <p className="info-strip-copy">
+                {historicalMode
+                  ? 'This record saves directly as delivered. No signature is expected, but the receipt image becomes the required proof for audit and invoicing.'
+                  : 'This record saves into your assigned queue. Dispatch time is captured when you leave for the route, and delivery time is captured when the recipient signs.'}
+              </p>
+            </div>
+
             <label className="field-stack">
               <span className="app-label">Order reference</span>
               <input
@@ -573,6 +709,49 @@ export function CreateWaybillPage() {
               </p>
             </label>
 
+            {historicalMode ? (
+              <>
+                <label className="field-stack">
+                  <span className="app-label">Dispatch time</span>
+                  <input
+                    type="datetime-local"
+                    value={form.dispatchTime}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        dispatchTime: event.target.value,
+                      }))
+                    }
+                    className="app-input"
+                  />
+                  <p className="field-hint">
+                    Optional. If left blank, the saved delivery time will also be used as the
+                    dispatch time.
+                  </p>
+                </label>
+
+                <label className="field-stack">
+                  <span className="app-label">Delivery time</span>
+                  <input
+                    type="datetime-local"
+                    value={form.completionTime}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        completionTime: event.target.value,
+                      }))
+                    }
+                    className="app-input"
+                    required
+                  />
+                  <p className="field-hint">
+                    Required for historical deliveries so the record falls into the correct billing
+                    week.
+                  </p>
+                </label>
+              </>
+            ) : null}
+
             <label className="field-stack lg:col-span-2">
               <span className="app-label">Location</span>
               <textarea
@@ -627,7 +806,6 @@ export function CreateWaybillPage() {
                       caughtError,
                       'Unable to read the receipt image.',
                     )
-                    setError(message)
                     showToast({
                       tone: 'error',
                       title: 'Receipt upload failed',
@@ -639,8 +817,9 @@ export function CreateWaybillPage() {
                 }}
               />
               <p className="field-hint">
-                Upload or capture the merchant receipt so the rider and operations team can
-                verify the order before delivery.
+                {historicalMode
+                  ? 'Required for historical deliveries. Upload or capture the receipt photo from the old manual record so finance can bill it confidently.'
+                  : 'Upload or capture the merchant receipt so the rider and operations team can verify the order before delivery.'}
               </p>
               <EvidencePreview
                 src={form.receiptImagePreviewUrl}
@@ -666,8 +845,6 @@ export function CreateWaybillPage() {
               ) : null}
             </div>
 
-            {error ? <Message tone="error">{error}</Message> : null}
-
             <div className="lg:col-span-2 flex justify-end">
               <div className="action-cluster">
                 <button
@@ -676,7 +853,11 @@ export function CreateWaybillPage() {
                   className="btn-secondary"
                   onClick={() => setSubmitIntent('add-another')}
                 >
-                  {submitting && submitIntent === 'add-another' ? 'Saving...' : 'Create and add another'}
+                  {submitting && submitIntent === 'add-another'
+                    ? 'Saving...'
+                    : historicalMode
+                      ? 'Save and add another'
+                      : 'Create and add another'}
                 </button>
                 <button
                   type="submit"
@@ -684,7 +865,11 @@ export function CreateWaybillPage() {
                   className="btn-primary"
                   onClick={() => setSubmitIntent('open')}
                 >
-                  {submitting && submitIntent === 'open' ? 'Creating...' : 'Create waybill'}
+                  {submitting && submitIntent === 'open'
+                    ? 'Creating...'
+                    : historicalMode
+                      ? 'Save historical delivery'
+                      : 'Create waybill'}
                 </button>
               </div>
             </div>
@@ -694,18 +879,31 @@ export function CreateWaybillPage() {
         <div className="sheet-stack">
           <div className="sheet-note">
             <p className="app-label">Required record</p>
-            <p className="inline-stat-value !mt-3 !text-[1.45rem]">Fast field dispatch</p>
+            <p className="inline-stat-value !mt-3 !text-[1.45rem]">
+              {historicalMode ? 'Manual delivery recovery' : 'Fast field dispatch'}
+            </p>
             <p className="sheet-note-copy">
-              Capture only what the rider needs in the field. Recipient phone is required,
-              recipient name is optional, and client attachment is required for billing.
+              {historicalMode
+                ? 'Backfilled records stay simple: the recipient phone is required, the name stays optional, and the receipt photo is the proof that makes the delivered record billable.'
+                : 'Capture only what the rider needs in the field. Recipient phone is required, recipient name is optional, and client attachment is required for billing.'}
             </p>
           </div>
           <div className="sheet-note">
             <p className="app-label">Workflow</p>
             <div className="mt-3 space-y-3 text-sm text-[var(--surface-muted)]">
-              <p><strong className="text-[var(--primary)]">1.</strong> Rider creates each waybill separately and queues it.</p>
-              <p><strong className="text-[var(--primary)]">2.</strong> Dispatch selected waybills together when leaving for the route.</p>
-              <p><strong className="text-[var(--primary)]">3.</strong> Receiver signs to capture delivery time and lock the completed record.</p>
+              {historicalMode ? (
+                <>
+                  <p><strong className="text-[var(--primary)]">1.</strong> Select the client and enter the old paper-record details.</p>
+                  <p><strong className="text-[var(--primary)]">2.</strong> Attach the merchant receipt image as delivery evidence.</p>
+                  <p><strong className="text-[var(--primary)]">3.</strong> Save it as delivered so it appears in reports and invoices.</p>
+                </>
+              ) : (
+                <>
+                  <p><strong className="text-[var(--primary)]">1.</strong> Rider creates each waybill separately and queues it.</p>
+                  <p><strong className="text-[var(--primary)]">2.</strong> Dispatch selected waybills together when leaving for the route.</p>
+                  <p><strong className="text-[var(--primary)]">3.</strong> Receiver signs to capture delivery time and lock the completed record.</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -735,7 +933,10 @@ function detailBands(waybill: WaybillDetail) {
       value: formatDateTime(waybill.completionTime),
       tone: 'low' as const,
       span: '',
-      detail: waybill.pod?.recipientName ?? 'Pending receiver signature',
+      detail:
+        waybill.deliveryProofMethod === 'receipt_photo'
+          ? 'Recorded from historical receipt-photo evidence'
+          : waybill.pod?.recipientName ?? 'Pending receiver signature',
     },
     {
       title: 'Return time',
@@ -746,6 +947,13 @@ function detailBands(waybill: WaybillDetail) {
         waybill.status === 'failed' || waybill.status === 'cancelled'
           ? 'Closed without delivery'
           : 'Only recorded for returned or cancelled jobs',
+    },
+    {
+      title: 'Record type',
+      value: entryModeLabel(waybill.entryMode),
+      tone: 'low' as const,
+      span: '',
+      detail: deliveryProofMethodLabel(waybill.deliveryProofMethod),
     },
     {
       title: 'Delivery method',
@@ -848,6 +1056,14 @@ function CustomerBrief({ waybill }: { waybill: WaybillDetail }) {
       <div className="compact-fact lg:col-span-2">
         <p className="data-label">Location</p>
         <p className="data-value">{waybill.deliveryAddress}</p>
+      </div>
+      <div className="compact-fact">
+        <p className="data-label">Record type</p>
+        <p className="data-value">{entryModeLabel(waybill.entryMode)}</p>
+      </div>
+      <div className="compact-fact">
+        <p className="data-label">Delivery proof</p>
+        <p className="data-value">{deliveryProofMethodLabel(waybill.deliveryProofMethod)}</p>
       </div>
       <div className="compact-fact">
         <p className="data-label">Item value</p>
@@ -1318,7 +1534,7 @@ function WaybillDetailScreen({
   const { showToast } = useToast()
   const [waybill, setWaybill] = useState<WaybillDetail | null>(null)
   const [riders, setRiders] = useState<User[]>([])
-  const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(true)
   const [statusNote, setStatusNote] = useState('')
   const [handoverNote, setHandoverNote] = useState('')
@@ -1335,7 +1551,7 @@ function WaybillDetailScreen({
 
   async function load() {
     setLoading(true)
-    setError('')
+    setLoadError('')
 
     try {
       const [waybillResponse, riderResponse] = await Promise.all([
@@ -1354,7 +1570,13 @@ function WaybillDetailScreen({
       setReceiptImageDataUrl('')
       setReceiptImagePreviewUrl('')
     } catch (caughtError) {
-      setError(errorMessageFrom(caughtError, 'Unable to load the waybill.'))
+      const message = errorMessageFrom(caughtError, 'Unable to load the waybill.')
+      setLoadError(message)
+      showToast({
+        tone: 'error',
+        title: 'Waybill failed to load',
+        message,
+      })
     } finally {
       setLoading(false)
     }
@@ -1394,7 +1616,6 @@ function WaybillDetailScreen({
       await load()
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to update the waybill.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Waybill update failed',
@@ -1408,11 +1629,7 @@ function WaybillDetailScreen({
       const dataUrl = await fileToDataUrl(file)
       setReceiptImageDataUrl(dataUrl)
       setReceiptImagePreviewUrl(dataUrl)
-      setError('')
     } catch (caughtError) {
-      setError(
-        errorMessageFrom(caughtError, 'Unable to read the receipt image.'),
-      )
       showToast({
         tone: 'error',
         title: 'Receipt read failed',
@@ -1434,7 +1651,6 @@ function WaybillDetailScreen({
       setWaybill(response.waybill)
       setReceiptImageDataUrl('')
       setReceiptImagePreviewUrl('')
-      setError('')
       showToast({
         tone: 'success',
         title: 'Receipt saved',
@@ -1442,7 +1658,6 @@ function WaybillDetailScreen({
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to save the receipt image.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Receipt save failed',
@@ -1470,7 +1685,6 @@ function WaybillDetailScreen({
         receiptImageDataUrl: null,
       })
       setWaybill(response.waybill)
-      setError('')
       showToast({
         tone: 'warning',
         title: 'Receipt removed',
@@ -1478,7 +1692,6 @@ function WaybillDetailScreen({
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to remove the receipt image.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Receipt removal failed',
@@ -1507,7 +1720,6 @@ function WaybillDetailScreen({
       await load()
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to save proof of delivery.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'POD capture failed',
@@ -1529,7 +1741,6 @@ function WaybillDetailScreen({
       setWaybill(response.waybill)
       setSelectedRider('')
       setHandoverNote('')
-      setError('')
       showToast({
         tone: 'success',
         title: 'Waybill handed over',
@@ -1537,7 +1748,6 @@ function WaybillDetailScreen({
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to hand over the waybill.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Handover failed',
@@ -1551,7 +1761,7 @@ function WaybillDetailScreen({
   }
 
   if (!waybill) {
-    return <Message tone="error">{error || 'Waybill not found.'}</Message>
+    return <div className="loading-panel">{loadError || 'Waybill not found.'}</div>
   }
 
   const currentRole = auth.user?.role ?? 'ops'
@@ -1565,8 +1775,6 @@ function WaybillDetailScreen({
 
   return (
     <div className="detail-page-stack">
-      {error ? <Message tone="error">{error}</Message> : null}
-
       <RecipientModePrompt
         open={showRecipientModePrompt}
         onOpen={() => {
@@ -1581,32 +1789,42 @@ function WaybillDetailScreen({
           <div className="detail-document-copy">
             <span className="kicker text-[var(--secondary)]">Delivery record</span>
             <h3 className="detail-document-title">Waybill / Delivery Note</h3>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="detail-document-statusline">
               <StatusBadge status={waybill.status} />
-              <span className="text-sm font-medium text-[var(--surface-muted)]">
+              <span className="status-pill neutral">{entryModeLabel(waybill.entryMode)}</span>
+              <span className="status-pill info">
+                {deliveryProofMethodLabel(waybill.deliveryProofMethod)}
+              </span>
+              <span className="detail-document-updated">
                 Last updated {formatDateTime(waybill.updatedAt)}
               </span>
             </div>
           </div>
 
           <div className="detail-document-meta">
-            <div className="flex items-center justify-between gap-4">
+            <div className="detail-document-meta-row primary">
               <span className="app-label">Waybill number</span>
-              <span className="detail-document-number">
-                {waybill.waybillNumber}
-              </span>
+              <span className="detail-document-number">{waybill.waybillNumber}</span>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+            <div className="detail-document-meta-row">
               <span className="app-label">Client</span>
-              <span className="text-[var(--surface-ink)]">
-                {waybill.client?.name ?? 'No client'}
+              <span className="detail-document-meta-value">{waybill.client?.name ?? 'No client'}</span>
+            </div>
+            <div className="detail-document-meta-row">
+              <span className="app-label">Record type</span>
+              <span className="detail-document-meta-value">{entryModeLabel(waybill.entryMode)}</span>
+            </div>
+            <div className="detail-document-meta-row">
+              <span className="app-label">Delivery proof</span>
+              <span className="detail-document-meta-value">
+                {deliveryProofMethodLabel(waybill.deliveryProofMethod)}
               </span>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+            <div className="detail-document-meta-row">
               <span className="app-label">Date issued</span>
-              <span className="text-[var(--surface-ink)]">{formatDate(waybill.createdAt)}</span>
+              <span className="detail-document-meta-value">{formatDate(waybill.createdAt)}</span>
             </div>
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="detail-document-links">
               <a
                 href={waybillPdfUrl(waybill.id)}
                 target="_blank"
@@ -1629,14 +1847,25 @@ function WaybillDetailScreen({
           </div>
         </div>
 
+        {waybill.entryMode === 'historical' ? (
+          <div className="info-strip">
+            <p className="app-label">Historical record</p>
+            <p className="info-strip-title">Recovered from the previous manual delivery process</p>
+            <p className="info-strip-copy">
+              This delivery was backfilled without a recipient signature. The stored receipt image,
+              completion time, and status history are the retained proof for audit and invoicing.
+            </p>
+          </div>
+        ) : null}
+
         <div className="bento-grid">
           {detailBands(waybill).map((item) => (
             <div key={item.title} className={`bento-card ${item.tone} ${item.span}`}>
               <p className="data-label">{item.title}</p>
-              <p className="mt-3 text-lg font-semibold leading-tight text-[var(--surface-ink)]">
+              <p className="detail-band-value">
                 {item.value}
               </p>
-              <p className="mt-2 text-sm text-[var(--surface-muted)]">{item.detail}</p>
+              <p className="detail-band-copy">{item.detail}</p>
             </div>
           ))}
         </div>
@@ -1729,7 +1958,6 @@ function WaybillDetailScreen({
                       await load()
                     } catch (caughtError) {
                       const message = errorMessageFrom(caughtError, 'Unable to assign rider.')
-                      setError(message)
                       showToast({
                         tone: 'error',
                         title: 'Assignment failed',
@@ -1789,8 +2017,16 @@ function WaybillDetailScreen({
           ) : null}
 
           <Panel
-            title="Digital acknowledgment"
-            copy="Stored proof of delivery signature."
+            title={
+              waybill.deliveryProofMethod === 'receipt_photo'
+                ? 'Delivery proof'
+                : 'Digital acknowledgment'
+            }
+            copy={
+              waybill.deliveryProofMethod === 'receipt_photo'
+                ? 'Historical deliveries rely on receipt-photo evidence instead of recipient signature.'
+                : 'Stored proof of delivery signature.'
+            }
           >
             {waybill.pod ? (
               <div className="media-panel-stack">
@@ -1803,6 +2039,15 @@ function WaybillDetailScreen({
                 <p className="text-[11px] leading-6 text-[var(--surface-muted)]">
                   By signing, the receiver acknowledges that the listed goods
                   were delivered in good condition.
+                </p>
+              </div>
+            ) : waybill.deliveryProofMethod === 'receipt_photo' ? (
+              <div className="info-strip compact">
+                <p className="app-label">Manual confirmation</p>
+                <p className="info-strip-title">No recipient signature was captured.</p>
+                <p className="info-strip-copy">
+                  This historical delivery uses the stored receipt image and recorded completion
+                  time as the proof retained from the earlier paper workflow.
                 </p>
               </div>
             ) : (
@@ -1847,6 +2092,33 @@ function WaybillDetailScreen({
                   <p className="data-value">{waybill.pod.note}</p>
                 </div>
               ) : null}
+            </div>
+          ) : waybill.entryMode === 'historical' && waybill.status === 'delivered' ? (
+            <div className="credential-grid">
+              <div className="credential-item">
+                <span className="app-label">Recipient</span>
+                <p className="data-value">Not captured in the earlier manual workflow</p>
+              </div>
+              <div className="credential-item">
+                <span className="app-label">Delivery time</span>
+                <p className="data-value">{formatDateTime(waybill.completionTime)}</p>
+              </div>
+              <div className="credential-item">
+                <span className="app-label">Recipient phone</span>
+                <p className="data-value">{waybill.customerPhone}</p>
+              </div>
+              <div className="credential-item credential-wide">
+                <span className="app-label">Location</span>
+                <p className="data-value">{waybill.deliveryAddress}</p>
+              </div>
+              <div className="credential-item">
+                <span className="app-label">Delivery method</span>
+                <p className="data-value">{deliveryMethodLabel(waybill.deliveryMethod)}</p>
+              </div>
+              <div className="credential-item">
+                <span className="app-label">Delivery proof</span>
+                <p className="data-value">{deliveryProofMethodLabel(waybill.deliveryProofMethod)}</p>
+              </div>
             </div>
           ) : (
             <p className="text-sm text-[var(--surface-muted)]">
@@ -1978,7 +2250,6 @@ export function RiderJobsPage() {
   const [shiftHandoverRiderId, setShiftHandoverRiderId] = useState('')
   const [shiftHandoverNote, setShiftHandoverNote] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -2003,7 +2274,6 @@ export function RiderJobsPage() {
       } catch (caughtError) {
         if (!cancelled) {
           const message = errorMessageFrom(caughtError, 'Unable to load rider jobs.')
-          setError(message)
           showToast({
             tone: 'error',
             title: 'Jobs failed to load',
@@ -2052,7 +2322,6 @@ export function RiderJobsPage() {
       await reloadRiderWorkspace()
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to dispatch the selected waybills.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Batch dispatch failed',
@@ -2081,7 +2350,6 @@ export function RiderJobsPage() {
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to check in to shift.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Shift check-in failed',
@@ -2102,7 +2370,6 @@ export function RiderJobsPage() {
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to check out of shift.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Shift check-out failed',
@@ -2131,7 +2398,6 @@ export function RiderJobsPage() {
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to start the shift handover.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Shift handover failed',
@@ -2151,7 +2417,6 @@ export function RiderJobsPage() {
       })
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to accept the shift handover.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Shift acceptance failed',
@@ -2200,7 +2465,6 @@ export function RiderJobsPage() {
         </div>
       }
     >
-      {error ? <Message tone="error">{error}</Message> : null}
       {!loading && shiftDashboard?.pendingIncomingHandovers.length ? (
         <Message tone="info">
           {shiftDashboard.pendingIncomingHandovers.length} pending shift handover
@@ -2449,12 +2713,17 @@ export function RiderJobsPage() {
                     <p className="text-sm text-[var(--surface-muted)]">{item.deliveryAddress}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={item.status} />
+                <div className="list-card-actions">
+                  <div className="list-card-statuses">
+                    <StatusBadge status={item.status} />
+                    {item.entryMode === 'historical' ? (
+                      <span className="status-pill neutral">Historical</span>
+                    ) : null}
+                  </div>
                   <Link
                     to="/rider/jobs/$waybillId"
                     params={{ waybillId: item.id }}
-                    className="btn-quiet"
+                    className="btn-quiet compact-action"
                   >
                     Open
                   </Link>

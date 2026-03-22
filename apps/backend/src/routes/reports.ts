@@ -24,6 +24,7 @@ reportRoutes.get('/weekly', async (c) => {
   const start = c.req.query('start')
   const end = c.req.query('end')
   const riderId = c.req.query('rider_id')
+  const entryMode = c.req.query('entry_mode')
 
   if (!start || !end) {
     throw new AppError(
@@ -54,11 +55,16 @@ reportRoutes.get('/weekly', async (c) => {
     conditions.push(eq(waybills.assignedRiderId, riderId))
   }
 
+  if (entryMode === 'live' || entryMode === 'historical') {
+    conditions.push(eq(waybills.entryMode, entryMode))
+  }
+
   const items = await db
     .select({
       waybillId: waybills.id,
       waybillNumber: waybills.waybillNumber,
       orderReference: waybills.orderReference,
+      entryMode: waybills.entryMode,
       customerName: waybills.customerName,
       riderId: users.id,
       riderName: users.name,
@@ -106,6 +112,7 @@ reportRoutes.get('/billing-summary', async (c) => {
   const end = c.req.query('end')
   const clientId = c.req.query('client_id')
   const invoiceStatus = c.req.query('invoice_status')
+  const entryMode = c.req.query('entry_mode')
 
   if (!start || !end) {
     throw new AppError(
@@ -136,6 +143,10 @@ reportRoutes.get('/billing-summary', async (c) => {
     conditions.push(eq(waybills.clientId, clientId))
   }
 
+  if (entryMode === 'live' || entryMode === 'historical') {
+    conditions.push(eq(waybills.entryMode, entryMode))
+  }
+
   if (invoiceStatus === 'uninvoiced') {
     conditions.push(isNull(invoiceItems.id))
   }
@@ -145,6 +156,7 @@ reportRoutes.get('/billing-summary', async (c) => {
       waybillId: waybills.id,
       waybillNumber: waybills.waybillNumber,
       orderReference: waybills.orderReference,
+      entryMode: waybills.entryMode,
       clientId: clients.id,
       clientName: clients.name,
       standardDeliveryRateCents: clients.standardDeliveryRateCents,

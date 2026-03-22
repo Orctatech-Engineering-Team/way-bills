@@ -92,17 +92,19 @@ export function ClientsPage() {
   const [showInactive, setShowInactive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
 
   async function load() {
     setLoading(true)
-    setError('')
 
     try {
       const response = await api.listClients(showInactive ? undefined : { active: true })
       setItems(response.items)
     } catch (caughtError) {
-      setError(errorMessageFrom(caughtError, 'Unable to load client accounts.'))
+      showToast({
+        tone: 'error',
+        title: 'Clients failed to load',
+        message: errorMessageFrom(caughtError, 'Unable to load client accounts.'),
+      })
     } finally {
       setLoading(false)
     }
@@ -115,7 +117,6 @@ export function ClientsPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitting(true)
-    setError('')
 
     const payload = {
       name: form.name,
@@ -157,7 +158,6 @@ export function ClientsPage() {
         caughtError,
         form.id ? 'Unable to update client.' : 'Unable to create client.',
       )
-      setError(message)
       showToast({
         tone: 'error',
         title: form.id ? 'Update failed' : 'Create failed',
@@ -176,8 +176,6 @@ export function ClientsPage() {
       title="Clients"
       subtitle="Manage the businesses you deliver for, along with billing defaults and payment terms."
     >
-      {error ? <div className="alert error">{error}</div> : null}
-
       <div className="inline-stat-grid">
         <div className="inline-stat">
           <p className="data-label">Visible clients</p>

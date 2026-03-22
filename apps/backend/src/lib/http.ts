@@ -1,3 +1,4 @@
+import { config } from '../config'
 import { AppError } from './errors'
 import type { Context, Next } from 'hono'
 import { ZodError } from 'zod'
@@ -18,19 +19,21 @@ export async function withErrorHandling(c: Context, next: Next) {
   try {
     await next()
   } catch (error) {
-    if (error instanceof AppError) {
-      c.status(error.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502)
+    const resolvedError = unwrapErrorCause(error)
+
+    if (resolvedError instanceof AppError) {
+      c.status(resolvedError.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502)
       return c.json({
         error: {
-          code: error.code,
-          message: error.message,
-          details: error.details ?? null,
+          code: resolvedError.code,
+          message: resolvedError.message,
+          details: resolvedError.details ?? null,
         },
       })
     }
 
-    if (error instanceof ZodError) {
-      const details = error.issues.map((issue) => ({
+    if (resolvedError instanceof ZodError) {
+      const details = resolvedError.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
       }))
@@ -45,13 +48,142 @@ export async function withErrorHandling(c: Context, next: Next) {
       })
     }
 
+    if (isPostgresLikeError(resolvedError)) {
+      const normalized = normalizePostgresLikeError(resolvedError)
+
+      c.status(normalized.status)
+      return c.json({
+        error: {
+          code: normalized.code,
+          message: normalized.message,
+          details: normalized.details ?? null,
+        },
+      })
+    }
+
     console.error(error)
     c.status(500)
     return c.json({
       error: {
         code: 'internal_error',
-        message: 'Something went wrong.',
+        message:
+          resolvedError instanceof Error && resolvedError.message
+            ? resolvedError.message
+            : 'Something went wrong.',
+        details:
+          config.appEnv === 'production'
+            ? null
+            : resolvedError instanceof Error
+              ? {
+                  name: resolvedError.name,
+                  stack: resolvedError.stack ?? null,
+                }
+              : null,
       },
     })
   }
+}
+
+type PostgresLikeError = {
+  code?: string
+  message?: string
+  detail?: string
+  hint?: string
+  table_name?: string
+  column_name?: string
+  constraint_name?: string
+}
+
+function isPostgresLikeError(error: unknown): error is PostgresLikeError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    'message' in error &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    typeof (error as { message?: unknown }).message === 'string'
+  )
+}
+
+function normalizePostgresLikeError(error: PostgresLikeError) {
+  const details = {
+    code: error.code ?? null,
+    detail: error.detail ?? null,
+    hint: error.hint ?? null,
+    table: error.table_name ?? null,
+    column: error.column_name ?? null,
+    constraint: error.constraint_name ?? null,
+  }
+
+  switch (error.code) {
+    case '23505':
+      return {
+        status: 409 as const,
+        code: 'duplicate_record',
+        message: error.detail ?? 'That record already exists.',
+        details,
+      }
+    case '23503':
+      return {
+        status: 409 as const,
+        code: 'related_record_missing',
+        message: error.detail ?? 'This action references a missing related record.',
+        details,
+      }
+    case '23502':
+      return {
+        status: 422 as const,
+        code: 'missing_required_value',
+        message:
+          error.column_name
+            ? `${error.column_name} is required.`
+            : error.message ?? 'A required value is missing.',
+        details,
+      }
+    case '22P02':
+      return {
+        status: 422 as const,
+        code: 'invalid_value',
+        message: error.message ?? 'One of the submitted values is invalid.',
+        details,
+      }
+    case '42703':
+      return {
+        status: 500 as const,
+        code: 'schema_mismatch',
+        message:
+          'The server schema is out of date. Run the latest database migrations and try again.',
+        details,
+      }
+    default:
+      return {
+        status: 500 as const,
+        code: 'database_error',
+        message: error.message ?? 'A database error occurred.',
+        details,
+      }
+  }
+}
+
+function unwrapErrorCause(error: unknown) {
+  let current = error
+  let depth = 0
+
+  while (
+    depth < 5 &&
+    current &&
+    typeof current === 'object' &&
+    'cause' in current &&
+    (current as { cause?: unknown }).cause
+  ) {
+    const next = (current as { cause?: unknown }).cause
+    if (!next || next === current) {
+      break
+    }
+
+    current = next
+    depth += 1
+  }
+
+  return current
 }

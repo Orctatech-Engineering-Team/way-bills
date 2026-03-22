@@ -117,14 +117,12 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
   const defaultRole = filterRole ?? 'ops'
   const [items, setItems] = useState<User[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<UserFormState>(createEmptyForm(defaultRole))
 
   async function load() {
     setLoading(true)
-    setError('')
 
     try {
       const [response, clientResponse] = await Promise.all([
@@ -136,7 +134,11 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
       setItems(response.items)
       setClients(clientResponse.items)
     } catch (caughtError) {
-      setError(errorMessageFrom(caughtError, 'Unable to load users.'))
+      showToast({
+        tone: 'error',
+        title: isRiderMode ? 'Riders failed to load' : 'Users failed to load',
+        message: errorMessageFrom(caughtError, 'Unable to load users.'),
+      })
     } finally {
       setLoading(false)
     }
@@ -152,10 +154,11 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
   const total = items.length
   const active = items.filter((item) => item.active).length
   const inactive = total - active
+  const defaultClientName =
+    clients.find((client) => client.id === form.defaultClientId)?.name ?? 'No default client'
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError('')
     setSubmitting(true)
 
     try {
@@ -210,7 +213,6 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
         caughtError,
         isEditing ? 'Unable to update user.' : 'Unable to create user.',
       )
-      setError(message)
       showToast({
         tone: 'error',
         title: isEditing ? 'Update failed' : 'Create failed',
@@ -232,7 +234,6 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
       await load()
     } catch (caughtError) {
       const message = errorMessageFrom(caughtError, 'Unable to update user.')
-      setError(message)
       showToast({
         tone: 'error',
         title: 'Account update failed',
@@ -251,10 +252,6 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
           : 'Create users, activate or deactivate accounts, and control who can access the workflow.'
       }
     >
-      {error ? (
-        <div className="alert error">{error}</div>
-      ) : null}
-
       <div className="inline-stat-grid">
         {[
           ['Total accounts', total],
@@ -440,7 +437,6 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                           caughtError,
                           'Unable to read the selected image.',
                         )
-                        setError(message)
                         showToast({
                           tone: 'error',
                           title: 'Image read failed',
@@ -468,13 +464,34 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                       )}
                     </div>
                     <div className="profile-preview-copy">
-                      <p className="profile-preview-title">
-                        {form.name.trim() || 'Rider profile preview'}
-                      </p>
+                      <div className="profile-preview-header">
+                        <p className="profile-preview-title">
+                          {form.name.trim() || 'Rider identity preview'}
+                        </p>
+                        <p className="profile-preview-subtitle">
+                          {form.phone.trim() || 'Phone number not entered yet'}
+                        </p>
+                      </div>
+                      <div className="profile-preview-facts">
+                        <div className="profile-preview-fact">
+                          <span className="data-label">Role</span>
+                          <span className="data-value">Rider</span>
+                        </div>
+                        <div className="profile-preview-fact">
+                          <span className="data-label">Default client</span>
+                          <span className="data-value">{defaultClientName}</span>
+                        </div>
+                        <div className="profile-preview-fact">
+                          <span className="data-label">Vehicle plate</span>
+                          <span className="data-value">
+                            {form.vehiclePlateNumber.trim() || 'Not recorded'}
+                          </span>
+                        </div>
+                      </div>
                       <p className="profile-preview-text">
                         {form.profileImagePreviewUrl
-                          ? 'This is the rider image that will appear in the roster and handover views.'
-                          : 'Add a clear rider photo so operations can identify the account quickly.'}
+                          ? 'This photo will appear in rider lists, delivery handovers, and recipient-facing delivery context.'
+                          : 'Add a clear front-facing rider photo so operations can confirm the account quickly during dispatch and shift handover.'}
                       </p>
                       {form.profileImagePreviewUrl ? (
                         <button
