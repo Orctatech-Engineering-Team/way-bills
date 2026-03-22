@@ -15,6 +15,11 @@ This stack assumes:
 - `compose.env.example`: Compose-time variables
 - `Caddyfile.example`: example host Caddy routes for the frontend and API domains
 
+The backend Docker build is split into:
+
+- a lean `runtime` image for the API service
+- a separate `ops` image for migrations, seed data, and admin bootstrap tasks
+
 ## First-time setup
 
 1. If your PostgreSQL service is on Docker and reachable through `orcta_net`, make sure that network exists:
@@ -58,8 +63,8 @@ bash deploy/local-preview.sh up
 
 That gives you:
 
-- frontend on `http://127.0.0.1:3000`
-- backend on `http://127.0.0.1:3001`
+- frontend on `http://localhost:3000`
+- backend on `http://localhost:3001`
 - local PostgreSQL on `127.0.0.1:54329`
 
 For a quick local login without demo seed data:
@@ -80,13 +85,13 @@ bash deploy/local-preview.sh seed
 ## Run database migrations
 
 ```bash
-docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --rm backend bun run db:migrate
+docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml --profile ops run --rm backend-ops bun run --cwd apps/backend db:migrate
 ```
 
 ## Optional seed
 
 ```bash
-docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml run --rm backend bun run db:seed
+docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml --profile ops run --rm backend-ops bun run --cwd apps/backend db:seed
 ```
 
 ## Bootstrap the first admin
@@ -143,6 +148,7 @@ Set these GitHub secrets before enabling deployment:
 - Docker publishes the services only on `127.0.0.1`, so host Caddy can reach them while they stay off the public interface.
 - `APP_ORIGIN` in `backend.env` must match the frontend origin, which is `https://waybills.orctatech.com`.
 - The backend joins `orcta_net` only so it can reach a PostgreSQL service there; host Caddy does not need that network.
+- The API service runs from the bundled backend runtime image; migrations and other operational commands run from the separate `backend-ops` image.
 - Caddy should remain the public entry point.
 - Local Docker preview works without `orcta_net`; it uses its own Postgres service.
 - Upload-dependent flows still need real R2 env values. If you leave the local R2 vars blank, the rest of the app can still be inspected, but media uploads and generated file storage will fail.

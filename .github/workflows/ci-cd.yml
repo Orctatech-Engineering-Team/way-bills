@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - master
       - main
   workflow_dispatch:
 
@@ -68,14 +69,25 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
+      - name: Build backend runtime image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/backend/Dockerfile
+          target: runtime
           push: false
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          cache-from: type=gha,scope=backend-runtime
+          cache-to: type=gha,mode=max,scope=backend-runtime
+
+      - name: Build backend ops image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          target: ops
+          push: false
+          cache-from: type=gha,scope=backend-ops
+          cache-to: type=gha,mode=max,scope=backend-ops
 
       - name: Build frontend image
         uses: docker/build-push-action@v6

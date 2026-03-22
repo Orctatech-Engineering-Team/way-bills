@@ -3,6 +3,8 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --target bun --outfile dist/index.js",
+    "start:bundle": "bun run dist/index.js",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "db:generate": "bun drizzle-kit generate",

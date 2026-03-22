@@ -6,3 +6,4 @@ deploy/backend.env
 deploy/compose.env
 deploy/backend.local.env
 deploy/compose.local.env
+apps/backend/dist
