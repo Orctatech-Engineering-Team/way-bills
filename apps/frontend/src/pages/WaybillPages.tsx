@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../feedback/ToastProvider'
 import { api, podPdfUrl, waybillPdfUrl } from '../lib/api'
 import {
+  formatGhanaPhoneForInput,
   formatGhanaPhoneForDisplay,
   normalizeAddressInput,
   normalizeGhanaPhone,
@@ -635,14 +636,13 @@ export function CreateWaybillPage() {
                 onBlur={() =>
                   setForm((current) => ({
                     ...current,
-                    customerPhone:
-                      normalizeGhanaPhone(current.customerPhone) ?? current.customerPhone.trim(),
+                    customerPhone: formatGhanaPhoneForInput(current.customerPhone),
                   }))
                 }
                 className="app-input"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="0241234567 or +233241234567"
+                placeholder="024 123 4567 or +233 24 123 4567"
                 required
               />
               <p className="field-hint">Saved in the +233 format for billing and delivery logs.</p>
@@ -2834,8 +2834,8 @@ export function RiderJobsPage() {
           ) : null}
           {items.map((item) => (
             <div key={item.id} className="list-card">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
+              <div className="list-card-header">
+                <div className="list-card-primary">
                   {item.status === 'assigned' ? (
                     <input
                       type="checkbox"
@@ -2853,14 +2853,14 @@ export function RiderJobsPage() {
                       />
                     ) : null
                   ) : null}
-                  <div className="space-y-1">
-                    <p className="font-['Manrope'] text-sm font-extrabold uppercase tracking-[0.12em] text-[var(--primary)]">
+                  <div className="list-card-identity">
+                    <p className="list-card-number">
                       {item.waybillNumber}
                     </p>
-                    <p className="text-sm font-medium text-[var(--surface-ink)]">
+                    <p className="list-card-person">
                       {recipientLabel(item.customerName)}
                     </p>
-                    <p className="text-sm text-[var(--surface-muted)]">{item.deliveryAddress}</p>
+                    <p className="list-card-address">{item.deliveryAddress}</p>
                   </div>
                 </div>
                 <div className="list-card-actions">

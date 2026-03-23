@@ -2,7 +2,11 @@ import { Navigate, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../feedback/ToastProvider'
-import { normalizeGhanaPhone, sanitizeGhanaPhoneInput } from '../lib/contact'
+import {
+  formatGhanaPhoneForInput,
+  normalizeGhanaPhone,
+  sanitizeGhanaPhoneInput,
+} from '../lib/contact'
 import { errorMessageFrom } from '../lib/feedback'
 import { defaultRouteForRole } from '../lib/utils'
 
@@ -64,9 +68,9 @@ export function LoginPage() {
               type="tel"
               value={phone}
               onChange={(event) => setPhone(sanitizeGhanaPhoneInput(event.target.value))}
-              onBlur={() => setPhone((current) => normalizeGhanaPhone(current) ?? current.trim())}
+              onBlur={() => setPhone((current) => formatGhanaPhoneForInput(current))}
               className="app-input"
-              placeholder="0241234567 or +233241234567"
+              placeholder="024 123 4567 or +233 24 123 4567"
               inputMode="tel"
               autoComplete="tel"
               required

@@ -3,6 +3,7 @@ import { ProtectedScreen } from '../components/AppLayout'
 import { useToast } from '../feedback/ToastProvider'
 import { api } from '../lib/api'
 import {
+  formatGhanaPhoneForInput,
   formatGhanaPhoneForDisplay,
   normalizeAddressInput,
   normalizeGhanaPhone,
@@ -241,13 +242,13 @@ export function ClientsPage() {
                     contactPhone:
                       current.contactPhone === ''
                         ? ''
-                        : normalizeGhanaPhone(current.contactPhone) ?? current.contactPhone.trim(),
+                        : formatGhanaPhoneForInput(current.contactPhone),
                   }))
                 }
+                placeholder="024 123 4567 or +233 24 123 4567"
                 className="app-input"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="0241234567 or +233241234567"
               />
               <p className="field-hint">Optional. Saved in the +233 format.</p>
             </label>

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  formatGhanaPhoneForInput,
   formatGhanaPhoneForDisplay,
   normalizeAddressInput,
   normalizeGhanaPhone,
@@ -18,6 +19,12 @@ describe('contact utilities', () => {
     expect(formatGhanaPhoneForDisplay('0241234567')).toBe('+233 24 123 4567')
     expect(formatGhanaPhoneForDisplay('+233241234567')).toBe('+233 24 123 4567')
     expect(formatGhanaPhoneForDisplay(null)).toBe('Not set')
+  })
+
+  test('formats Ghana phone numbers for input fields', () => {
+    expect(formatGhanaPhoneForInput('0241234567')).toBe('+233 24 123 4567')
+    expect(formatGhanaPhoneForInput('+233241234567')).toBe('+233 24 123 4567')
+    expect(formatGhanaPhoneForInput('02412')).toBe('02412')
   })
 
   test('normalizes address input into a clean single line', () => {

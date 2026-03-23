@@ -3,6 +3,7 @@ import { ProtectedScreen } from '../components/AppLayout'
 import { useToast } from '../feedback/ToastProvider'
 import { api } from '../lib/api'
 import {
+  formatGhanaPhoneForInput,
   formatGhanaPhoneForDisplay,
   normalizeAddressInput,
   normalizeGhanaPhone,
@@ -319,10 +320,10 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                 onBlur={() =>
                   setForm((current) => ({
                     ...current,
-                    phone: normalizeGhanaPhone(current.phone) ?? current.phone.trim(),
+                    phone: formatGhanaPhoneForInput(current.phone),
                   }))
                 }
-                placeholder="0241234567 or +233241234567"
+                placeholder="024 123 4567 or +233 24 123 4567"
                 className="app-input"
                 inputMode="tel"
                 autoComplete="tel"

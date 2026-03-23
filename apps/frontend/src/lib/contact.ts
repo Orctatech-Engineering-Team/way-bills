@@ -38,6 +38,16 @@ export function formatGhanaPhoneForDisplay(value: string | null | undefined) {
   return `+233 ${localPart.slice(0, 2)} ${localPart.slice(2, 5)} ${localPart.slice(5)}`
 }
 
+export function formatGhanaPhoneForInput(value: string) {
+  const normalized = normalizeGhanaPhone(value)
+
+  if (!normalized) {
+    return sanitizeGhanaPhoneInput(value)
+  }
+
+  return formatGhanaPhoneForDisplay(normalized)
+}
+
 export function normalizeAddressInput(value: string) {
   return value
     .split(/\r?\n/)
