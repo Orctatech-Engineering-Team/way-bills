@@ -7,6 +7,7 @@ import {
   eq,
   ilike,
   inArray,
+  isNull,
   or,
 } from 'drizzle-orm'
 import { z } from 'zod'
@@ -39,49 +40,83 @@ import {
   assertTransition,
   generateWaybillNumber,
 } from '../lib/waybills'
+import {
+  addressField,
+  ghanaPhoneField,
+  imageDataUrlField,
+  nullableImageDataUrlField,
+  nullableOptionalDateTimeField,
+  optionalDateTimeField,
+  optionalText,
+  optionalNullableText,
+  requiredId,
+  requiredText,
+} from '../lib/validation'
 
 const createWaybillSchema = z.object({
-  orderReference: z.string().min(2),
-  clientId: z.string().min(1),
-  entryMode: z.enum(['live', 'historical']).default('live'),
-  customerName: z.string().min(2).nullable().optional(),
-  customerPhone: z.string().min(3),
-  deliveryAddress: z.string().min(5),
-  deliveryMethod: z.enum(['cash', 'momo', 'card', 'bank_transfer', 'other']),
-  itemValueCents: z.number().int().min(0).nullable().optional(),
-  receiptImageDataUrl: z.string().min(20).optional(),
-  dispatchTime: z.string().datetime().nullable().optional(),
-  completionTime: z.string().datetime().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  orderReference: requiredText('Order reference', 2),
+  clientId: requiredId('Client'),
+  entryMode: z.enum(['live', 'historical'], {
+    error: 'Entry mode must be live or historical.',
+  }).default('live'),
+  customerName: optionalNullableText('Customer name', 2),
+  customerPhone: ghanaPhoneField('Customer phone'),
+  deliveryAddress: addressField('Delivery address', 5),
+  deliveryMethod: z.enum(['cash', 'momo', 'card', 'bank_transfer', 'other'], {
+    error: 'Delivery method must be cash, momo, card, bank transfer, or other.',
+  }),
+  itemValueCents: z
+    .number()
+    .int('Item value must be a whole number.')
+    .min(0, 'Item value cannot be negative.')
+    .nullable()
+    .optional(),
+  receiptImageDataUrl: imageDataUrlField('Receipt image').optional(),
+  dispatchTime: nullableOptionalDateTimeField('Dispatch time'),
+  completionTime: nullableOptionalDateTimeField('Delivery time'),
+  notes: optionalNullableText('Notes', 2),
 })
 
 const assignWaybillSchema = z.object({
-  riderId: z.string().min(1),
-  note: z.string().optional(),
+  riderId: requiredId('Rider'),
+  note: optionalText('Assignment note', 2),
 })
 
 const updateStatusSchema = z.object({
-  status: z.enum(['created', 'assigned', 'dispatched', 'delivered', 'failed', 'cancelled']),
-  note: z.string().optional(),
+  status: z.enum(['created', 'assigned', 'dispatched', 'delivered', 'failed', 'cancelled'], {
+    error: 'Waybill status is invalid.',
+  }),
+  note: optionalText('Status note', 2),
 })
 
 const createPodSchema = z.object({
-  recipientName: z.string().min(2).nullable().optional(),
-  signatureDataUrl: z.string().min(20),
-  note: z.string().nullable().optional(),
+  recipientName: optionalNullableText('Recipient name', 2),
+  signatureDataUrl: imageDataUrlField('Recipient signature'),
+  note: optionalNullableText('Review', 2),
 })
 
 const batchDispatchSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1).max(20),
+  ids: z
+    .array(requiredId('Waybill'))
+    .min(1, 'Select at least one waybill to dispatch.')
+    .max(20, 'You can dispatch up to 20 waybills at a time.'),
+})
+
+const batchReturnTimeSchema = z.object({
+  ids: z
+    .array(requiredId('Waybill'))
+    .min(1, 'Select at least one waybill to mark as returned.')
+    .max(20, 'You can update return time for up to 20 waybills at a time.'),
+  returnTime: optionalDateTimeField('Return time'),
 })
 
 const updateReceiptSchema = z.object({
-  receiptImageDataUrl: z.string().min(20).nullable(),
+  receiptImageDataUrl: nullableImageDataUrlField('Receipt image'),
 })
 
 const handoverWaybillSchema = z.object({
-  riderId: z.string().min(1),
-  note: z.string().nullable().optional(),
+  riderId: requiredId('Replacement rider'),
+  note: optionalNullableText('Handover note', 2),
 })
 
 function canMutateWaybill(
@@ -546,6 +581,78 @@ waybillRoutes.patch('/batch-dispatch', async (c) => {
   })
 })
 
+waybillRoutes.patch('/batch-return-time', async (c) => {
+  const currentUser = c.get('user')
+  const input = await parseJson(c, batchReturnTimeSchema.parse)
+  if (currentUser.role === 'rider') {
+    await assertActiveRiderShift(currentUser.id)
+  }
+
+  const records = await db.query.waybills.findMany({
+    where: inArray(waybills.id, input.ids),
+  })
+
+  assert(
+    records.length === input.ids.length,
+    new AppError(404, 'not_found', 'One or more waybills were not found.'),
+  )
+
+  const returnTime = input.returnTime ? new Date(input.returnTime) : new Date()
+  assert(
+    !Number.isNaN(returnTime.getTime()),
+    new AppError(400, 'invalid_return_time', 'Return time must be a valid date.'),
+  )
+
+  await db.transaction(async (tx) => {
+    for (const record of records) {
+      assert(
+        canMutateWaybill(currentUser, record),
+        new AppError(403, 'forbidden', 'You cannot log return time for one or more selected waybills.'),
+      )
+      assert(
+        ['delivered', 'failed', 'cancelled'].includes(record.status),
+        new AppError(
+          409,
+          'return_time_unavailable',
+          'Return time can only be logged after a delivery has been completed or closed.',
+        ),
+      )
+      assert(
+        !record.returnTime,
+        new AppError(
+          409,
+          'return_time_already_logged',
+          'Return time has already been logged for one or more selected waybills.',
+        ),
+      )
+
+      await tx
+        .update(waybills)
+        .set({
+          returnTime,
+          updatedAt: new Date(),
+        })
+        .where(eq(waybills.id, record.id))
+
+      await tx.insert(statusLogs).values({
+        id: crypto.randomUUID(),
+        waybillId: record.id,
+        fromStatus: record.status,
+        toStatus: record.status,
+        changedBy: currentUser.id,
+        changedAt: returnTime,
+        note: 'Route return time logged.',
+      })
+    }
+  })
+
+  return c.json({
+    success: true,
+    count: records.length,
+    returnTime: returnTime.toISOString(),
+  })
+})
+
 waybillRoutes.get('/', async (c) => {
   const currentUser = c.get('user')
   const status = c.req.query('status')
@@ -556,7 +663,12 @@ waybillRoutes.get('/', async (c) => {
 
   if (currentUser.role === 'rider') {
     conditions.push(eq(waybills.assignedRiderId, currentUser.id))
-    conditions.push(inArray(waybills.status, ['assigned', 'dispatched', 'failed']))
+    conditions.push(
+      or(
+        inArray(waybills.status, ['assigned', 'dispatched']),
+        and(inArray(waybills.status, ['delivered', 'failed']), isNull(waybills.returnTime)),
+      )!,
+    )
   }
 
   if (status) {

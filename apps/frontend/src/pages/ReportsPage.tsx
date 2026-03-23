@@ -304,7 +304,7 @@ export function ReportsPage() {
         <div className="sheet-stack">
           <div className="sheet-note">
             <p className="app-label">Reporting window</p>
-            <p className="inline-stat-value !mt-3 !text-[1.45rem]">
+            <p className="data-value !mt-2 !text-[var(--primary)]">
               {filters.start} to {filters.end}
             </p>
           </div>
@@ -325,9 +325,12 @@ export function ReportsPage() {
 
       <Panel title="Operations totals" copy="Delivery execution for the selected period.">
         {loading || !weeklyReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading operational totals...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading operations totals</p>
+            <p className="empty-state-copy">Preparing delivery execution counts for this window.</p>
+          </div>
         ) : (
-          <div className="inline-stat-grid">
+          <div className="summary-grid">
             <div className="data-card">
               <p className="data-label">Completed deliveries</p>
               <p className="display-number mt-2 text-[var(--primary)]">
@@ -346,9 +349,12 @@ export function ReportsPage() {
 
       <Panel title="Shift totals" copy="Shift check-ins, check-outs, and confirmed replacements in the selected window.">
         {loading || !shiftReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading shift totals...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading shift totals</p>
+            <p className="empty-state-copy">Preparing rider shift counts for this window.</p>
+          </div>
         ) : (
-          <div className="inline-stat-grid">
+          <div className="summary-grid">
             <div className="data-card">
               <p className="data-label">Check-ins</p>
               <p className="display-number mt-2 text-[var(--primary)]">
@@ -379,9 +385,12 @@ export function ReportsPage() {
 
       <Panel title="Billing totals" copy="Delivered commercial value across the same reporting window.">
         {loading || !billingReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading billing totals...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading billing totals</p>
+            <p className="empty-state-copy">Preparing billable value totals for this window.</p>
+          </div>
         ) : (
-          <div className="inline-stat-grid">
+          <div className="summary-grid">
             <div className="data-card">
               <p className="data-label">Delivered waybills</p>
               <p className="display-number mt-2 text-[var(--primary)]">
@@ -422,7 +431,10 @@ export function ReportsPage() {
         }
       >
         {loading || !weeklyReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading deliveries...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading deliveries</p>
+            <p className="empty-state-copy">Fetching completed deliveries for the selected period.</p>
+          </div>
         ) : (
           <>
             <div className="table-shell desktop-only">
@@ -503,7 +515,10 @@ export function ReportsPage() {
         }
       >
         {loading || !billingReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading billing summary...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading billing summary</p>
+            <p className="empty-state-copy">Preparing grouped client totals now.</p>
+          </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {billingReport.grouped.map((group) => (
@@ -526,7 +541,10 @@ export function ReportsPage() {
         copy="Each rider shift that overlaps the selected reporting window."
       >
         {loading || !shiftReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading shifts...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading shifts</p>
+            <p className="empty-state-copy">Fetching shift records for the selected window.</p>
+          </div>
         ) : (
           <>
             <div className="table-shell desktop-only">
@@ -589,7 +607,10 @@ export function ReportsPage() {
         copy="Outgoing and incoming rider confirmations captured during shift changes."
       >
         {loading || !shiftReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading shift handovers...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading shift handovers</p>
+            <p className="empty-state-copy">Fetching confirmed rider replacements.</p>
+          </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {shiftReport.handovers.map((handover) => (
@@ -606,9 +627,12 @@ export function ReportsPage() {
               </div>
             ))}
             {shiftReport.handovers.length === 0 ? (
-              <p className="text-sm text-[var(--surface-muted)]">
-                No shift handovers were recorded in the selected window.
-              </p>
+              <div className="empty-state md:col-span-2">
+                <p className="empty-state-title">No shift handovers</p>
+                <p className="empty-state-copy">
+                  No rider replacements were recorded in the selected window.
+                </p>
+              </div>
             ) : null}
           </div>
         )}
@@ -626,7 +650,10 @@ export function ReportsPage() {
         }
       >
         {loading || !shiftReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading shift timeline...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading shift timeline</p>
+            <p className="empty-state-copy">Preparing the linear shift event trail.</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {shiftReport.timeline.map((item) => (
@@ -643,9 +670,12 @@ export function ReportsPage() {
               </div>
             ))}
             {shiftReport.timeline.length === 0 ? (
-              <p className="text-sm text-[var(--surface-muted)]">
-                No shift events were recorded in the selected window.
-              </p>
+              <div className="empty-state">
+                <p className="empty-state-title">No shift events</p>
+                <p className="empty-state-copy">
+                  No shift starts, check-outs, or handovers were recorded in the selected window.
+                </p>
+              </div>
             ) : null}
           </div>
         )}
@@ -656,7 +686,10 @@ export function ReportsPage() {
         copy="Every completed billable waybill in the selected period, including invoice linkage where present."
       >
         {loading || !billingReport ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading billable deliveries...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading billable deliveries</p>
+            <p className="empty-state-copy">Fetching completed commercial deliveries now.</p>
+          </div>
         ) : (
           <div className="table-shell">
             <table className="editorial-table">

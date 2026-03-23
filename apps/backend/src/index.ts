@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { config } from './config'
-import { withErrorHandling } from './lib/http'
+import { handleError } from './lib/http'
 import { authRoutes } from './routes/auth'
 import { userRoutes } from './routes/users'
 import { waybillRoutes } from './routes/waybills'
@@ -14,7 +14,8 @@ import type { AppVariables } from './lib/auth'
 
 const app = new Hono<{ Variables: AppVariables }>()
 
-app.use('*', logger(), withErrorHandling)
+app.use('*', logger())
+app.onError(handleError)
 app.use(
   '*',
   cors({

@@ -349,7 +349,7 @@ export function InvoicesPage() {
               />
             </label>
 
-            <div className="lg:col-span-2 flex justify-end">
+            <div className="lg:col-span-2 action-row">
               <button type="submit" disabled={creating} className="btn-primary">
                 {creating ? 'Generating...' : 'Generate invoice'}
               </button>
@@ -416,7 +416,10 @@ export function InvoicesPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading invoices...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading invoices</p>
+            <p className="empty-state-copy">Fetching the invoice register now.</p>
+          </div>
         ) : (
           <>
             <div className="table-shell desktop-only">
@@ -524,12 +527,20 @@ export function InvoicesPage() {
         }
       >
         {detailLoading ? (
-          <p className="text-sm text-[var(--surface-muted)]">Loading invoice detail...</p>
+          <div className="empty-state">
+            <p className="empty-state-title">Loading invoice detail</p>
+            <p className="empty-state-copy">Preparing the selected invoice for review.</p>
+          </div>
         ) : !selectedInvoice ? (
-          <p className="text-sm text-[var(--surface-muted)]">Select an invoice from the register to review it.</p>
+          <div className="empty-state">
+            <p className="empty-state-title">No invoice selected</p>
+            <p className="empty-state-copy">
+              Select an invoice from the register to review line items, status, and export actions.
+            </p>
+          </div>
         ) : (
           <div className="sheet-stack">
-            <div className="compact-fact-grid">
+            <div className="summary-grid">
               <div className="compact-fact">
                 <p className="data-label">Client</p>
                 <p className="data-value">{selectedInvoice.client.name}</p>
@@ -574,7 +585,7 @@ export function InvoicesPage() {
               </div>
             </div>
 
-            <div className="action-cluster">
+            <div className="action-row">
               {selectedInvoice.status !== 'paid' ? (
                 <button type="button" className="btn-primary" onClick={() => void changeStatus('paid')}>
                   Mark paid
@@ -622,7 +633,7 @@ export function InvoicesPage() {
                   {visibleInvoiceItems.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-10 text-center text-sm text-[var(--surface-muted)]">
-                        No invoice line items match the current record-type filter.
+                        No invoice line items match the current filter.
                       </td>
                     </tr>
                   ) : null}

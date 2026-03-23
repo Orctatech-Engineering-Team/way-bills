@@ -3,6 +3,7 @@ import { ChevronDown, LogOut, Menu, Package2, Palette, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
+import { formatGhanaPhoneForDisplay } from '../lib/contact'
 import type { UserRole } from '../lib/types'
 import { defaultRouteForRole } from '../lib/utils'
 import { useTheme } from '../theme/ThemeProvider'
@@ -187,7 +188,9 @@ export function ProtectedScreen({
                     <div className="account-dropdown-section">
                       <p className="account-dropdown-label">Signed in as</p>
                       <p className="identity-name">{auth.user.name}</p>
-                      <p className="identity-copy">{auth.user.phone}</p>
+                      <p className="identity-copy">
+                        {formatGhanaPhoneForDisplay(auth.user.phone)}
+                      </p>
                     </div>
                     <div className="account-dropdown-divider" />
                     <div className="account-dropdown-section">
@@ -302,7 +305,9 @@ export function ProtectedScreen({
                 <div className="mobile-nav-session-copy">
                   <span className="identity-role">{auth.user.role}</span>
                   <p className="identity-name">{auth.user.name}</p>
-                  <p className="identity-copy">{auth.user.phone}</p>
+                  <p className="identity-copy">
+                    {formatGhanaPhoneForDisplay(auth.user.phone)}
+                  </p>
                 </div>
                 <div className="mobile-theme-block">
                   <div className="theme-section-header">

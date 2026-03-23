@@ -1,6 +1,6 @@
 import { config } from '../config'
 import { AppError } from './errors'
-import type { Context, Next } from 'hono'
+import type { Context } from 'hono'
 import { ZodError } from 'zod'
 
 export async function parseJson<T>(c: Context, parser: (input: unknown) => T) {
@@ -12,76 +12,125 @@ export async function parseJson<T>(c: Context, parser: (input: unknown) => T) {
     throw new AppError(400, 'invalid_json', 'Request body must be valid JSON.')
   }
 
-  return parser(body)
+  return parseInput(parser, body)
 }
 
-export async function withErrorHandling(c: Context, next: Next) {
+export function parseInput<T>(parser: (input: unknown) => T, input: unknown) {
   try {
-    await next()
+    return parser(input)
   } catch (error) {
-    const resolvedError = unwrapErrorCause(error)
-
-    if (resolvedError instanceof AppError) {
-      c.status(resolvedError.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502)
-      return c.json({
-        error: {
-          code: resolvedError.code,
-          message: resolvedError.message,
-          details: resolvedError.details ?? null,
-        },
-      })
-    }
-
-    if (resolvedError instanceof ZodError) {
-      const details = resolvedError.issues.map((issue) => ({
+    if (isZodErrorLike(error)) {
+      const details = error.issues.map((issue) => ({
         path: issue.path.join('.'),
         message: issue.message,
       }))
 
-      c.status(422)
-      return c.json({
-        error: {
-          code: 'validation_error',
-          message: details[0]?.message ?? 'Request validation failed.',
-          details,
-        },
-      })
+      throw new AppError(
+        422,
+        'validation_error',
+        details[0]?.message ?? 'Request validation failed.',
+        details,
+      )
     }
 
-    if (isPostgresLikeError(resolvedError)) {
-      const normalized = normalizePostgresLikeError(resolvedError)
+    throw error
+  }
+}
 
-      c.status(normalized.status)
-      return c.json({
-        error: {
-          code: normalized.code,
-          message: normalized.message,
-          details: normalized.details ?? null,
-        },
-      })
-    }
+export function handleError(error: unknown, c: Context) {
+  const resolvedError = unwrapErrorCause(error)
 
-    console.error(error)
-    c.status(500)
+  if (isAppErrorLike(resolvedError)) {
+    c.status(resolvedError.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502)
     return c.json({
       error: {
-        code: 'internal_error',
-        message:
-          resolvedError instanceof Error && resolvedError.message
-            ? resolvedError.message
-            : 'Something went wrong.',
-        details:
-          config.appEnv === 'production'
-            ? null
-            : resolvedError instanceof Error
-              ? {
-                  name: resolvedError.name,
-                  stack: resolvedError.stack ?? null,
-                }
-              : null,
+        code: resolvedError.code,
+        message: resolvedError.message,
+        details: resolvedError.details ?? null,
       },
     })
   }
+
+  if (isZodErrorLike(resolvedError)) {
+    const details = resolvedError.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
+    }))
+
+    c.status(422)
+    return c.json({
+      error: {
+        code: 'validation_error',
+        message: details[0]?.message ?? 'Request validation failed.',
+        details,
+      },
+    })
+  }
+
+  if (isPostgresLikeError(resolvedError)) {
+    const normalized = normalizePostgresLikeError(resolvedError)
+
+    c.status(normalized.status)
+    return c.json({
+      error: {
+        code: normalized.code,
+        message: normalized.message,
+        details: normalized.details ?? null,
+      },
+    })
+  }
+
+  console.error(error)
+  c.status(500)
+  return c.json({
+    error: {
+      code: 'internal_error',
+      message:
+        resolvedError instanceof Error && resolvedError.message
+          ? resolvedError.message
+          : 'Something went wrong.',
+      details:
+        config.appEnv === 'production'
+          ? null
+          : resolvedError instanceof Error
+            ? {
+                name: resolvedError.name,
+                stack: resolvedError.stack ?? null,
+              }
+            : null,
+    },
+  })
+}
+
+function isAppErrorLike(error: unknown): error is AppError {
+  return (
+    error instanceof AppError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      'status' in error &&
+      'code' in error &&
+      'message' in error &&
+      typeof (error as { status?: unknown }).status === 'number' &&
+      typeof (error as { code?: unknown }).code === 'string' &&
+      typeof (error as { message?: unknown }).message === 'string')
+  )
+}
+
+type ZodErrorLike = {
+  issues: Array<{
+    path: Array<string | number>
+    message: string
+  }>
+}
+
+function isZodErrorLike(error: unknown): error is ZodErrorLike {
+  return (
+    error instanceof ZodError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      'issues' in error &&
+      Array.isArray((error as { issues?: unknown }).issues))
+  )
 }
 
 type PostgresLikeError = {

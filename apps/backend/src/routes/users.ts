@@ -8,35 +8,50 @@ import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
 import { decodeImageDataUrl } from '../lib/image'
 import { uploadProfileImageFile } from '../lib/storage'
+import {
+  ghanaPhoneField,
+  optionalImageDataUrlField,
+  optionalNullableAddressField,
+  optionalGhanaPhoneField,
+  optionalNullableId,
+  optionalNullableText,
+  requiredText,
+} from '../lib/validation'
 
 const createUserSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(3),
-  role: z.enum(['admin', 'ops', 'rider']),
-  password: z.string().min(6),
+  name: requiredText('Full name', 2),
+  phone: ghanaPhoneField('Phone number'),
+  role: z.enum(['admin', 'ops', 'rider'], {
+    error: 'User role must be admin, ops, or rider.',
+  }),
+  password: requiredText('Password', 6),
   active: z.boolean().optional().default(true),
-  profileImageDataUrl: z.string().min(20).optional(),
-  defaultClientId: z.string().min(1).optional().nullable(),
-  vehicleType: z.string().min(2).optional().nullable(),
-  vehiclePlateNumber: z.string().min(2).optional().nullable(),
-  licenseNumber: z.string().min(2).optional().nullable(),
-  address: z.string().min(5).optional().nullable(),
-  notes: z.string().min(2).optional().nullable(),
+  profileImageDataUrl: optionalImageDataUrlField('Profile image'),
+  defaultClientId: optionalNullableId('Default client'),
+  vehicleType: optionalNullableText('Vehicle type', 2),
+  vehiclePlateNumber: optionalNullableText('Vehicle plate number', 2),
+  licenseNumber: optionalNullableText('License number', 2),
+  address: optionalNullableAddressField('Address', 5),
+  notes: optionalNullableText('Notes', 2),
 })
 
 const updateUserSchema = z.object({
-  name: z.string().min(2).optional(),
-  phone: z.string().min(3).optional(),
-  role: z.enum(['admin', 'ops', 'rider']).optional(),
-  password: z.string().min(6).optional(),
+  name: requiredText('Full name', 2).optional(),
+  phone: optionalGhanaPhoneField('Phone number'),
+  role: z
+    .enum(['admin', 'ops', 'rider'], {
+      error: 'User role must be admin, ops, or rider.',
+    })
+    .optional(),
+  password: requiredText('Password', 6).optional(),
   active: z.boolean().optional(),
-  profileImageDataUrl: z.string().min(20).optional().nullable(),
-  defaultClientId: z.string().min(1).optional().nullable(),
-  vehicleType: z.string().min(2).optional().nullable(),
-  vehiclePlateNumber: z.string().min(2).optional().nullable(),
-  licenseNumber: z.string().min(2).optional().nullable(),
-  address: z.string().min(5).optional().nullable(),
-  notes: z.string().min(2).optional().nullable(),
+  profileImageDataUrl: optionalImageDataUrlField('Profile image').nullable(),
+  defaultClientId: optionalNullableId('Default client'),
+  vehicleType: optionalNullableText('Vehicle type', 2),
+  vehiclePlateNumber: optionalNullableText('Vehicle plate number', 2),
+  licenseNumber: optionalNullableText('License number', 2),
+  address: optionalNullableAddressField('Address', 5),
+  notes: optionalNullableText('Notes', 2),
 })
 
 type PublicUser = {

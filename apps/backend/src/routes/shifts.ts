@@ -9,26 +9,27 @@ import {
 } from '../db/schema'
 import { requireAuth, type AppVariables } from '../lib/auth'
 import { AppError, assert } from '../lib/errors'
-import { parseJson } from '../lib/http'
+import { parseInput, parseJson } from '../lib/http'
 import { buildShiftTimeline, computeShiftReportTotals } from '../lib/shifts'
+import { dateOnlyField, optionalNullableText, requiredId } from '../lib/validation'
 
 const checkInSchema = z.object({
-  note: z.string().min(2).nullable().optional(),
+  note: optionalNullableText('Shift note', 2),
 })
 
 const startHandoverSchema = z.object({
-  incomingRiderId: z.string().min(1),
-  note: z.string().min(2).nullable().optional(),
+  incomingRiderId: requiredId('Incoming rider'),
+  note: optionalNullableText('Handover note', 2),
 })
 
 const acceptHandoverSchema = z.object({
-  note: z.string().min(2).nullable().optional(),
+  note: optionalNullableText('Handover note', 2),
 })
 
 const shiftReportQuerySchema = z.object({
-  start: z.iso.date(),
-  end: z.iso.date(),
-  riderId: z.string().min(1).optional(),
+  start: dateOnlyField('Shift report start date'),
+  end: dateOnlyField('Shift report end date'),
+  riderId: requiredId('Rider').optional(),
 })
 
 async function getActiveShift(riderId: string) {
@@ -191,7 +192,7 @@ shiftRoutes.get('/report', async (c) => {
     new AppError(403, 'forbidden', 'Only admin or ops can view shift reports.'),
   )
 
-  const input = shiftReportQuerySchema.parse({
+  const input = parseInput(shiftReportQuerySchema.parse, {
     start: c.req.query('start'),
     end: c.req.query('end'),
     riderId: c.req.query('rider_id') ?? undefined,

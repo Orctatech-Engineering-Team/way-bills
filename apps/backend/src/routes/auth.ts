@@ -12,10 +12,11 @@ import {
 } from '../lib/auth'
 import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
+import { ghanaPhoneField, requiredText } from '../lib/validation'
 
 const loginSchema = z.object({
-  phone: z.string().min(3),
-  password: z.string().min(6),
+  phone: ghanaPhoneField('Phone number'),
+  password: requiredText('Password', 6),
 })
 
 export const authRoutes = new Hono<{ Variables: AppVariables }>()

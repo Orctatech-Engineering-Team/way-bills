@@ -2,6 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ProtectedScreen } from '../components/AppLayout'
 import { useToast } from '../feedback/ToastProvider'
 import { api } from '../lib/api'
+import {
+  formatGhanaPhoneForDisplay,
+  normalizeAddressInput,
+  normalizeGhanaPhone,
+  sanitizeGhanaPhoneInput,
+} from '../lib/contact'
 import { errorMessageFrom } from '../lib/feedback'
 import type { Client } from '../lib/types'
 import {
@@ -121,9 +127,11 @@ export function ClientsPage() {
     const payload = {
       name: form.name,
       contactName: form.contactName || null,
-      contactPhone: form.contactPhone || null,
+      contactPhone: form.contactPhone
+        ? normalizeGhanaPhone(form.contactPhone) ?? form.contactPhone
+        : null,
       contactEmail: form.contactEmail || null,
-      billingAddress: form.billingAddress,
+      billingAddress: normalizeAddressInput(form.billingAddress),
       currency: form.currency.toUpperCase(),
       paymentTermsDays: Number(form.paymentTermsDays || 0),
       standardDeliveryRateCents: centsFromMajorInput(form.standardDeliveryRateCents),
@@ -219,13 +227,29 @@ export function ClientsPage() {
             <label className="field-stack">
               <span className="app-label">Contact phone</span>
               <input
-                type="text"
+                type="tel"
                 value={form.contactPhone}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, contactPhone: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    contactPhone: sanitizeGhanaPhoneInput(event.target.value),
+                  }))
+                }
+                onBlur={() =>
+                  setForm((current) => ({
+                    ...current,
+                    contactPhone:
+                      current.contactPhone === ''
+                        ? ''
+                        : normalizeGhanaPhone(current.contactPhone) ?? current.contactPhone.trim(),
+                  }))
                 }
                 className="app-input"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="0241234567 or +233241234567"
               />
+              <p className="field-hint">Optional. Saved in the +233 format.</p>
             </label>
 
             <label className="field-stack">
@@ -335,9 +359,18 @@ export function ClientsPage() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, billingAddress: event.target.value }))
                 }
+                onBlur={() =>
+                  setForm((current) => ({
+                    ...current,
+                    billingAddress: normalizeAddressInput(current.billingAddress),
+                  }))
+                }
                 className="app-textarea min-h-28"
+                autoComplete="street-address"
+                placeholder="Spintex Road, Community 18, Accra"
                 required
               />
+              <p className="field-hint">Use area, landmark, and city in a clean printable line.</p>
             </label>
 
             <label className="field-checkbox lg:col-span-2">
@@ -424,7 +457,11 @@ export function ClientsPage() {
                       </td>
                       <td className="text-[var(--surface-muted)]">
                         <p>{item.contactName ?? 'No contact set'}</p>
-                        <p>{item.contactPhone ?? item.contactEmail ?? 'No phone or email'}</p>
+                        <p>
+                          {item.contactPhone
+                            ? formatGhanaPhoneForDisplay(item.contactPhone)
+                            : item.contactEmail ?? 'No phone or email'}
+                        </p>
                       </td>
                       <td className="text-[var(--surface-muted)]">
                         <p>{formatMoney(item.standardDeliveryRateCents, item.currency)} standard</p>
@@ -490,7 +527,11 @@ export function ClientsPage() {
                     </div>
                     <div className="data-card">
                       <p className="data-label">Contact</p>
-                      <p className="data-value">{item.contactPhone ?? item.contactEmail ?? 'Not set'}</p>
+                      <p className="data-value">
+                        {item.contactPhone
+                          ? formatGhanaPhoneForDisplay(item.contactPhone)
+                          : item.contactEmail ?? 'Not set'}
+                      </p>
                     </div>
                   </div>
                 </button>

@@ -172,6 +172,18 @@ export const api = {
       body: JSON.stringify({ ids }),
     })
   },
+  async batchLogWaybillReturnTime(ids: string[], returnTime?: string) {
+    return request<{ success: boolean; count: number; returnTime: string }>(
+      '/waybills/batch-return-time',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ids,
+          returnTime,
+        }),
+      },
+    )
+  },
   async handoverWaybill(id: string, input: { riderId: string; note?: string | null }) {
     return request<{ waybill: WaybillDetail }>(`/waybills/${id}/handover`, {
       method: 'PATCH',

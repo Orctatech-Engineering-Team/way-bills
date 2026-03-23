@@ -6,18 +6,56 @@ import { clients } from '../db/schema'
 import { requireAuth, requireRole, type AppVariables } from '../lib/auth'
 import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
+import {
+  addressField,
+  optionalNullableGhanaPhoneField,
+  optionalNullableText,
+  requiredText,
+} from '../lib/validation'
 
 const clientSchema = z.object({
-  name: z.string().min(2),
-  contactName: z.string().min(2).nullable().optional(),
-  contactPhone: z.string().min(3).nullable().optional(),
-  contactEmail: z.email().nullable().optional(),
-  billingAddress: z.string().min(5),
-  currency: z.string().min(3).max(3).optional().default('GHS'),
-  paymentTermsDays: z.number().int().min(0).max(90).optional().default(7),
-  standardDeliveryRateCents: z.number().int().min(0).optional().default(0),
-  weeklyBandLimit: z.number().int().min(0).max(1000).nullable().optional(),
-  overflowDeliveryRateCents: z.number().int().min(0).nullable().optional(),
+  name: requiredText('Client name', 2),
+  contactName: optionalNullableText('Contact name', 2),
+  contactPhone: optionalNullableGhanaPhoneField('Contact phone'),
+  contactEmail: z
+    .string()
+    .trim()
+    .email('Contact email must be a valid email address.')
+    .nullable()
+    .optional(),
+  billingAddress: addressField('Billing address', 5),
+  currency: z
+    .string()
+    .trim()
+    .length(3, 'Currency must be a 3-letter code.')
+    .optional()
+    .default('GHS'),
+  paymentTermsDays: z
+    .number()
+    .int('Payment terms must be a whole number of days.')
+    .min(0, 'Payment terms cannot be negative.')
+    .max(90, 'Payment terms cannot be more than 90 days.')
+    .optional()
+    .default(7),
+  standardDeliveryRateCents: z
+    .number()
+    .int('Standard delivery rate must be a whole number.')
+    .min(0, 'Standard delivery rate cannot be negative.')
+    .optional()
+    .default(0),
+  weeklyBandLimit: z
+    .number()
+    .int('Weekly band limit must be a whole number.')
+    .min(0, 'Weekly band limit cannot be negative.')
+    .max(1000, 'Weekly band limit cannot be more than 1000 deliveries.')
+    .nullable()
+    .optional(),
+  overflowDeliveryRateCents: z
+    .number()
+    .int('Overflow delivery rate must be a whole number.')
+    .min(0, 'Overflow delivery rate cannot be negative.')
+    .nullable()
+    .optional(),
   active: z.boolean().optional().default(true),
 })
 

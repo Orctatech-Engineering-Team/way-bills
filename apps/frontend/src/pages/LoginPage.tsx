@@ -2,6 +2,7 @@ import { Navigate, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../feedback/ToastProvider'
+import { normalizeGhanaPhone, sanitizeGhanaPhoneInput } from '../lib/contact'
 import { errorMessageFrom } from '../lib/feedback'
 import { defaultRouteForRole } from '../lib/utils'
 
@@ -36,7 +37,10 @@ export function LoginPage() {
             setSubmitting(true)
 
             try {
-              const user = await auth.login({ phone, password })
+              const user = await auth.login({
+                phone: normalizeGhanaPhone(phone) ?? phone,
+                password,
+              })
               showToast({
                 tone: 'success',
                 title: 'Signed in',
@@ -57,13 +61,17 @@ export function LoginPage() {
           <label className="field-stack">
             <span className="app-label">Phone</span>
             <input
-              type="text"
+              type="tel"
               value={phone}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={(event) => setPhone(sanitizeGhanaPhoneInput(event.target.value))}
+              onBlur={() => setPhone((current) => normalizeGhanaPhone(current) ?? current.trim())}
               className="app-input"
-              placeholder="+233200000002"
+              placeholder="0241234567 or +233241234567"
+              inputMode="tel"
+              autoComplete="tel"
               required
             />
+            <p className="field-hint">Saved and matched in the +233 format.</p>
           </label>
 
           <label className="field-stack">

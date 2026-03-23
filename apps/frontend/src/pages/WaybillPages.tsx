@@ -7,6 +7,12 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../auth/AuthProvider'
 import { useToast } from '../feedback/ToastProvider'
 import { api, podPdfUrl, waybillPdfUrl } from '../lib/api'
+import {
+  formatGhanaPhoneForDisplay,
+  normalizeAddressInput,
+  normalizeGhanaPhone,
+  sanitizeGhanaPhoneInput,
+} from '../lib/contact'
 import { fileToDataUrl } from '../lib/files'
 import { errorMessageFrom } from '../lib/feedback'
 import type {
@@ -254,7 +260,7 @@ export function OpsWaybillListPage() {
                         <p className="font-medium text-[var(--surface-ink)]">
                           {recipientLabel(item.customerName)}
                         </p>
-                        <p>{item.customerPhone}</p>
+                        <p>{formatGhanaPhoneForDisplay(item.customerPhone)}</p>
                       </td>
                       <td className="text-[var(--surface-muted)]">
                         {item.deliveryAddress}
@@ -326,7 +332,9 @@ export function OpsWaybillListPage() {
                     </div>
                     <div className="data-card">
                       <p className="data-label">Phone</p>
-                      <p className="data-value">{item.customerPhone}</p>
+                      <p className="data-value">
+                        {formatGhanaPhoneForDisplay(item.customerPhone)}
+                      </p>
                     </div>
                     <div className="data-card">
                       <p className="data-label">Rider</p>
@@ -488,8 +496,8 @@ export function CreateWaybillPage() {
                   clientId: form.clientId,
                   entryMode: form.entryMode,
                   customerName: form.customerName || null,
-                  customerPhone: form.customerPhone,
-                  deliveryAddress: form.deliveryAddress,
+                  customerPhone: normalizeGhanaPhone(form.customerPhone) ?? form.customerPhone,
+                  deliveryAddress: normalizeAddressInput(form.deliveryAddress),
                   deliveryMethod: form.deliveryMethod,
                   itemValueCents: form.itemValueCents
                     ? centsFromMajorInput(form.itemValueCents)
@@ -562,10 +570,7 @@ export function CreateWaybillPage() {
                   className={`mode-switch-option ${form.entryMode === 'live' ? 'active' : ''}`}
                   onClick={() => switchEntryMode('live')}
                 >
-                  <span className="mode-switch-title">Live delivery</span>
-                  <span className="mode-switch-copy">
-                    Queue it now and complete it later with recipient signature.
-                  </span>
+                  <span className="mode-switch-title">Live</span>
                 </button>
                 <button
                   type="button"
@@ -574,18 +579,24 @@ export function CreateWaybillPage() {
                   className={`mode-switch-option ${form.entryMode === 'historical' ? 'active' : ''}`}
                   onClick={() => switchEntryMode('historical')}
                 >
-                  <span className="mode-switch-title">Historical delivery</span>
-                  <span className="mode-switch-copy">
-                    Save a completed paper-era delivery using receipt-photo evidence.
-                  </span>
+                  <span className="mode-switch-title">Historical</span>
                 </button>
               </div>
+              <p className="field-hint">
+                Choose <strong>Live</strong> for today&apos;s route work or <strong>Historical</strong>{' '}
+                when backfilling completed paper records.
+              </p>
             </div>
 
-            <div className="info-strip lg:col-span-2">
-              <p className="app-label">Current flow</p>
+            <div className="info-strip compact operational-note lg:col-span-2">
+              <div className="operational-note-header">
+                <p className="app-label">Current flow</p>
+                <span className="operational-note-tag">
+                  {historicalMode ? 'Historical import' : 'Live queue'}
+                </span>
+              </div>
               <p className="info-strip-title">
-                {historicalMode ? 'Completed record import' : 'Route-day dispatch queue'}
+                {historicalMode ? 'Save directly as delivered.' : 'Queue now, dispatch later.'}
               </p>
               <p className="info-strip-copy">
                 {historicalMode
@@ -613,17 +624,28 @@ export function CreateWaybillPage() {
             <label className="field-stack">
               <span className="app-label">Recipient phone</span>
               <input
-                type="text"
+                type="tel"
                 value={form.customerPhone}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    customerPhone: event.target.value,
+                    customerPhone: sanitizeGhanaPhoneInput(event.target.value),
+                  }))
+                }
+                onBlur={() =>
+                  setForm((current) => ({
+                    ...current,
+                    customerPhone:
+                      normalizeGhanaPhone(current.customerPhone) ?? current.customerPhone.trim(),
                   }))
                 }
                 className="app-input"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="0241234567 or +233241234567"
                 required
               />
+              <p className="field-hint">Saved in the +233 format for billing and delivery logs.</p>
             </label>
 
             <label className="field-stack">
@@ -762,9 +784,18 @@ export function CreateWaybillPage() {
                     deliveryAddress: event.target.value,
                   }))
                 }
+                onBlur={() =>
+                  setForm((current) => ({
+                    ...current,
+                    deliveryAddress: normalizeAddressInput(current.deliveryAddress),
+                  }))
+                }
                 className="app-textarea min-h-28"
+                autoComplete="street-address"
+                placeholder="East Legon, American House, Accra"
                 required
               />
+              <p className="field-hint">Use area, landmark, and city in one clean printable line.</p>
             </label>
 
             <label className="field-stack lg:col-span-2">
@@ -919,7 +950,7 @@ function detailBands(waybill: WaybillDetail) {
       value: waybill.deliveryAddress,
       tone: 'low' as const,
       span: 'md:col-span-2',
-      detail: `${recipientLabel(waybill.customerName)} • ${waybill.customerPhone}`,
+      detail: `${recipientLabel(waybill.customerName)} • ${formatGhanaPhoneForDisplay(waybill.customerPhone)}`,
     },
     {
       title: 'Dispatch time',
@@ -998,7 +1029,7 @@ function RiderProfileCard({ rider }: { rider: WaybillDetail['assignedRider'] }) 
             <p className="entity-title">{rider.name}</p>
             <span className="entity-pill">Assigned rider</span>
           </div>
-          <p className="entity-meta">{rider.phone}</p>
+          <p className="entity-meta">{formatGhanaPhoneForDisplay(rider.phone)}</p>
           {rider.vehicleType ? (
             <p className="entity-subcopy">{rider.vehicleType}</p>
           ) : null}
@@ -1047,7 +1078,7 @@ function CustomerBrief({ waybill }: { waybill: WaybillDetail }) {
       </div>
       <div className="compact-fact">
         <p className="data-label">Recipient phone</p>
-        <p className="data-value">{waybill.customerPhone}</p>
+        <p className="data-value">{formatGhanaPhoneForDisplay(waybill.customerPhone)}</p>
       </div>
       <div className="compact-fact">
         <p className="data-label">Delivery method</p>
@@ -1139,7 +1170,7 @@ function PodSigningForm({
           </div>
           <div className="compact-fact">
             <p className="data-label">Recipient phone</p>
-            <p className="data-value">{waybill.customerPhone}</p>
+            <p className="data-value">{formatGhanaPhoneForDisplay(waybill.customerPhone)}</p>
           </div>
           <div className="compact-fact">
             <p className="data-label">Delivery method</p>
@@ -2076,7 +2107,7 @@ function WaybillDetailScreen({
               </div>
               <div className="credential-item">
                 <span className="app-label">Recipient phone</span>
-                <p className="data-value">{waybill.customerPhone}</p>
+                <p className="data-value">{formatGhanaPhoneForDisplay(waybill.customerPhone)}</p>
               </div>
               <div className="credential-item credential-wide">
                 <span className="app-label">Location</span>
@@ -2105,7 +2136,7 @@ function WaybillDetailScreen({
               </div>
               <div className="credential-item">
                 <span className="app-label">Recipient phone</span>
-                <p className="data-value">{waybill.customerPhone}</p>
+                <p className="data-value">{formatGhanaPhoneForDisplay(waybill.customerPhone)}</p>
               </div>
               <div className="credential-item credential-wide">
                 <span className="app-label">Location</span>
@@ -2246,6 +2277,8 @@ export function RiderJobsPage() {
   const [riders, setRiders] = useState<User[]>([])
   const [shiftDashboard, setShiftDashboard] = useState<ShiftDashboard | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedReturnIds, setSelectedReturnIds] = useState<string[]>([])
+  const [returnTime, setReturnTime] = useState(localDateTimeInputValue())
   const [shiftNote, setShiftNote] = useState('')
   const [shiftHandoverRiderId, setShiftHandoverRiderId] = useState('')
   const [shiftHandoverNote, setShiftHandoverNote] = useState('')
@@ -2268,6 +2301,16 @@ export function RiderJobsPage() {
           setSelectedIds((current) =>
             current.filter((id) =>
               response.items.some((item) => item.id === id && item.status === 'assigned'),
+            ),
+          )
+          setSelectedReturnIds((current) =>
+            current.filter((id) =>
+              response.items.some(
+                (item) =>
+                  item.id === id &&
+                  (item.status === 'delivered' || item.status === 'failed') &&
+                  !item.returnTime,
+              ),
             ),
           )
         }
@@ -2294,6 +2337,9 @@ export function RiderJobsPage() {
   }, [])
 
   const readyToDispatch = items.filter((item) => item.status === 'assigned')
+  const readyToReturn = items.filter(
+    (item) => (item.status === 'delivered' || item.status === 'failed') && !item.returnTime,
+  )
 
   async function reloadRiderWorkspace() {
     const [response, dashboard, riderResponse] = await Promise.all([
@@ -2304,6 +2350,21 @@ export function RiderJobsPage() {
     setItems(response.items)
     setShiftDashboard(dashboard)
     setRiders(riderResponse.items)
+    setSelectedIds((current) =>
+      current.filter((id) =>
+        response.items.some((item) => item.id === id && item.status === 'assigned'),
+      ),
+    )
+    setSelectedReturnIds((current) =>
+      current.filter((id) =>
+        response.items.some(
+          (item) =>
+            item.id === id &&
+            (item.status === 'delivered' || item.status === 'failed') &&
+            !item.returnTime,
+        ),
+      ),
+    )
   }
 
   async function dispatchSelected() {
@@ -2334,6 +2395,43 @@ export function RiderJobsPage() {
     setSelectedIds((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
     )
+  }
+
+  function toggleReturnSelection(id: string) {
+    setSelectedReturnIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    )
+  }
+
+  async function logReturnTime() {
+    if (selectedReturnIds.length === 0) {
+      return
+    }
+
+    try {
+      const isoReturnTime = returnTime
+        ? isoFromDateTimeLocalInput(returnTime) ?? undefined
+        : undefined
+      await api.batchLogWaybillReturnTime(
+        selectedReturnIds,
+        isoReturnTime,
+      )
+      showToast({
+        tone: 'success',
+        title: 'Return time logged',
+        message: `${selectedReturnIds.length} job${selectedReturnIds.length === 1 ? '' : 's'} now show the route return time.`,
+      })
+      setSelectedReturnIds([])
+      setReturnTime(localDateTimeInputValue())
+      await reloadRiderWorkspace()
+    } catch (caughtError) {
+      const message = errorMessageFrom(caughtError, 'Unable to log return time.')
+      showToast({
+        tone: 'error',
+        title: 'Return logging failed',
+        message,
+      })
+    }
   }
 
   async function checkInShift() {
@@ -2667,12 +2765,55 @@ export function RiderJobsPage() {
           </div>
         </Panel>
       ) : null}
+      {!loading && readyToReturn.length > 0 ? (
+        <Panel
+          title="Route return"
+          copy="After finishing the run, select the delivered or failed jobs you brought back from the route and stamp the shared return time once."
+          tone="soft"
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,220px)_auto_auto] lg:items-end">
+            <label className="field-stack">
+              <span className="app-label">Return time</span>
+              <input
+                type="datetime-local"
+                value={returnTime}
+                onChange={(event) => setReturnTime(event.target.value)}
+                className="app-input"
+              />
+            </label>
+            <button
+              type="button"
+              className="btn-quiet"
+              onClick={() =>
+                setSelectedReturnIds(
+                  selectedReturnIds.length === readyToReturn.length
+                    ? []
+                    : readyToReturn.map((item) => item.id),
+                )
+              }
+              disabled={!shiftDashboard?.activeShift || readyToReturn.length === 0}
+            >
+              {selectedReturnIds.length === readyToReturn.length && readyToReturn.length > 0
+                ? 'Clear returnable'
+                : 'Select returnable'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void logReturnTime()}
+              disabled={!shiftDashboard?.activeShift || selectedReturnIds.length === 0}
+            >
+              Log return time
+            </button>
+          </div>
+        </Panel>
+      ) : null}
       {!loading ? (
         <div className="inline-stat-grid">
           {[
             ['Queued', items.filter((item) => item.status === 'assigned').length],
             ['Dispatched', items.filter((item) => item.status === 'dispatched').length],
-            ['Exceptions', items.filter((item) => item.status === 'failed').length],
+            ['Ready to return', readyToReturn.length],
             ['Visible jobs', items.length],
           ].map(([label, value]) => (
             <div key={label} className="inline-stat">
@@ -2702,6 +2843,15 @@ export function RiderJobsPage() {
                       onChange={() => toggleSelection(item.id)}
                       className="mt-1 h-4 w-4"
                     />
+                  ) : item.status === 'delivered' || item.status === 'failed' ? (
+                    !item.returnTime ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedReturnIds.includes(item.id)}
+                        onChange={() => toggleReturnSelection(item.id)}
+                        className="mt-1 h-4 w-4"
+                      />
+                    ) : null
                   ) : null}
                   <div className="space-y-1">
                     <p className="font-['Manrope'] text-sm font-extrabold uppercase tracking-[0.12em] text-[var(--primary)]">
@@ -2732,11 +2882,15 @@ export function RiderJobsPage() {
               <div className="list-card-meta">
                 <div className="data-card">
                   <p className="data-label">Recipient phone</p>
-                  <p className="data-value">{item.customerPhone}</p>
+                  <p className="data-value">{formatGhanaPhoneForDisplay(item.customerPhone)}</p>
                 </div>
                 <div className="data-card">
                   <p className="data-label">Dispatch time</p>
                   <p className="data-value">{formatDateTime(item.dispatchTime)}</p>
+                </div>
+                <div className="data-card">
+                  <p className="data-label">Return time</p>
+                  <p className="data-value">{formatDateTime(item.returnTime)}</p>
                 </div>
                 <div className="data-card">
                   <p className="data-label">Delivery method</p>

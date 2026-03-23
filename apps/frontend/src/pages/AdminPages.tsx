@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { ProtectedScreen } from '../components/AppLayout'
 import { useToast } from '../feedback/ToastProvider'
 import { api } from '../lib/api'
+import {
+  formatGhanaPhoneForDisplay,
+  normalizeAddressInput,
+  normalizeGhanaPhone,
+  sanitizeGhanaPhoneInput,
+} from '../lib/contact'
 import { fileToDataUrl } from '../lib/files'
 import { errorMessageFrom } from '../lib/feedback'
 import type { Client, User, UserRole } from '../lib/types'
@@ -106,7 +112,9 @@ function RiderProfileSummary({ user }: { user: User }) {
       )}
       <div>
         <p className="font-medium text-(--primary)">{user.name}</p>
-        <p className="mt-1 text-sm text-(--surface-muted)">{user.phone}</p>
+        <p className="mt-1 text-sm text-(--surface-muted)">
+          {formatGhanaPhoneForDisplay(user.phone)}
+        </p>
       </div>
     </div>
   )
@@ -165,7 +173,7 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
       if (isEditing && form.id) {
         await api.updateUser(form.id, {
           name: form.name,
-          phone: form.phone,
+          phone: normalizeGhanaPhone(form.phone) ?? form.phone,
           role: isRiderMode ? 'rider' : form.role,
           password: form.password || undefined,
           defaultClientId: isRiderMode ? form.defaultClientId || null : undefined,
@@ -177,7 +185,7 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
           vehicleType: isRiderMode ? form.vehicleType || null : undefined,
           vehiclePlateNumber: isRiderMode ? form.vehiclePlateNumber || null : undefined,
           licenseNumber: isRiderMode ? form.licenseNumber || null : undefined,
-          address: isRiderMode ? form.address || null : undefined,
+          address: isRiderMode ? normalizeAddressInput(form.address) || null : undefined,
           notes: isRiderMode ? form.notes || null : undefined,
         })
         showToast({
@@ -188,7 +196,7 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
       } else {
         await api.createUser({
           name: form.name,
-          phone: form.phone,
+          phone: normalizeGhanaPhone(form.phone) ?? form.phone,
           role: isRiderMode ? 'rider' : form.role,
           password: form.password,
           defaultClientId: isRiderMode ? form.defaultClientId || null : undefined,
@@ -196,7 +204,7 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
           vehicleType: isRiderMode ? form.vehicleType || null : undefined,
           vehiclePlateNumber: isRiderMode ? form.vehiclePlateNumber || null : undefined,
           licenseNumber: isRiderMode ? form.licenseNumber || null : undefined,
-          address: isRiderMode ? form.address || null : undefined,
+          address: isRiderMode ? normalizeAddressInput(form.address) || null : undefined,
           notes: isRiderMode ? form.notes || null : undefined,
         })
         showToast({
@@ -300,15 +308,27 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
             <label className="field-stack">
               <span className="app-label">Phone number</span>
               <input
-                type="text"
+                type="tel"
                 value={form.phone}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, phone: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    phone: sanitizeGhanaPhoneInput(event.target.value),
+                  }))
                 }
-                placeholder="Phone number"
+                onBlur={() =>
+                  setForm((current) => ({
+                    ...current,
+                    phone: normalizeGhanaPhone(current.phone) ?? current.phone.trim(),
+                  }))
+                }
+                placeholder="0241234567 or +233241234567"
                 className="app-input"
+                inputMode="tel"
+                autoComplete="tel"
                 required
               />
+              <p className="field-hint">Saved and displayed in the +233 format.</p>
             </label>
 
             {!isRiderMode ? (
@@ -469,7 +489,9 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                           {form.name.trim() || 'Rider identity preview'}
                         </p>
                         <p className="profile-preview-subtitle">
-                          {form.phone.trim() || 'Phone number not entered yet'}
+                          {form.phone.trim()
+                            ? formatGhanaPhoneForDisplay(form.phone)
+                            : 'Phone number not entered yet'}
                         </p>
                       </div>
                       <div className="profile-preview-facts">
@@ -520,9 +542,17 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, address: event.target.value }))
                     }
+                    onBlur={() =>
+                      setForm((current) => ({
+                        ...current,
+                        address: normalizeAddressInput(current.address),
+                      }))
+                    }
                     className="app-textarea"
-                    placeholder="Rider home base or area"
+                    autoComplete="street-address"
+                    placeholder="East Legon, American House, Accra"
                   />
+                  <p className="field-hint">Keep it clean: area, landmark, and city.</p>
                 </label>
 
                 <label className="field-stack md:col-span-2">
@@ -610,7 +640,9 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                       <td>
                         {isRiderMode ? <RiderProfileSummary user={user} /> : user.name}
                       </td>
-                      <td className="text-(--surface-muted)">{user.phone}</td>
+                      <td className="text-(--surface-muted)">
+                        {formatGhanaPhoneForDisplay(user.phone)}
+                      </td>
                       <td className="text-(--surface-muted)">
                         {isRiderMode ? (
                           <>
@@ -654,7 +686,9 @@ export function AdminUsersPage({ filterRole }: { filterRole?: 'rider' }) {
                   ) : (
                     <div>
                       <p className="font-medium text-(--primary)">{user.name}</p>
-                      <p className="mt-1 text-sm text-(--surface-muted)">{user.phone}</p>
+                      <p className="mt-1 text-sm text-(--surface-muted)">
+                        {formatGhanaPhoneForDisplay(user.phone)}
+                      </p>
                     </div>
                   )}
                   <div className="mobile-record-row">

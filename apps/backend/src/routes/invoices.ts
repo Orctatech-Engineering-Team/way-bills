@@ -20,17 +20,20 @@ import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
 import { buildInvoicePdf } from '../lib/pdf'
 import type { InvoicePdfDetail } from '../lib/pdf.types'
+import { dateOnlyField, optionalNullableText, requiredId } from '../lib/validation'
 
 const createInvoiceSchema = z.object({
-  clientId: z.string().min(1),
-  start: z.iso.date(),
-  end: z.iso.date(),
-  dueDate: z.iso.date().optional(),
-  notes: z.string().nullable().optional(),
+  clientId: requiredId('Client'),
+  start: dateOnlyField('Invoice start date'),
+  end: dateOnlyField('Invoice end date'),
+  dueDate: dateOnlyField('Invoice due date').optional(),
+  notes: optionalNullableText('Notes', 2),
 })
 
 const updateInvoiceStatusSchema = z.object({
-  status: z.enum(['paid', 'void']),
+  status: z.enum(['paid', 'void'], {
+    error: 'Invoice status must be paid or void.',
+  }),
 })
 
 function createInvoiceNumber(date: Date, sequence: number) {
