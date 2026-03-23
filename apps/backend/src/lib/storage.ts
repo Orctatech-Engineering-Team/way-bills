@@ -1,5 +1,6 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { assertStorageConfig, config } from '../config'
+import { PUBLIC_DOCUMENT_CACHE_CONTROL, PUBLIC_MEDIA_CACHE_CONTROL } from './cache'
 import { AppError } from './errors'
 
 const r2Client = new S3Client({
@@ -18,6 +19,7 @@ async function uploadStorageFile(options: {
   bucket: string
   path: string
   publicBaseUrl: string
+  cacheControl: string
 }) {
   assertStorageConfig()
 
@@ -28,6 +30,7 @@ async function uploadStorageFile(options: {
         Key: options.path,
         Body: Buffer.from(options.bytes),
         ContentType: options.mimeType,
+        CacheControl: options.cacheControl,
       }),
     )
   } catch (error) {
@@ -51,6 +54,7 @@ export async function uploadSignatureFile(options: {
     ...options,
     bucket: config.r2StorageBucket,
     publicBaseUrl: config.r2StoragePublicBaseUrl,
+    cacheControl: PUBLIC_MEDIA_CACHE_CONTROL,
   })
 }
 
@@ -63,6 +67,7 @@ export async function uploadDocumentFile(options: {
     bucket: config.r2DocumentBucket,
     mimeType: 'application/pdf',
     publicBaseUrl: config.r2DocumentPublicBaseUrl,
+    cacheControl: PUBLIC_DOCUMENT_CACHE_CONTROL,
   })
 }
 
@@ -75,6 +80,7 @@ export async function uploadProfileImageFile(options: {
     ...options,
     bucket: config.r2StorageBucket,
     publicBaseUrl: config.r2StoragePublicBaseUrl,
+    cacheControl: PUBLIC_MEDIA_CACHE_CONTROL,
   })
 }
 
@@ -87,5 +93,6 @@ export async function uploadWaybillReceiptFile(options: {
     ...options,
     bucket: config.r2StorageBucket,
     publicBaseUrl: config.r2StoragePublicBaseUrl,
+    cacheControl: PUBLIC_MEDIA_CACHE_CONTROL,
   })
 }

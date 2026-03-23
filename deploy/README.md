@@ -145,6 +145,9 @@ Set these GitHub secrets before enabling deployment:
 
 - The frontend is built with `VITE_API_BASE_URL=https://api.waybills.orctatech.com`, so browser requests go directly to the API domain.
 - The frontend container also uses Caddy internally as a simple static file server for the built SPA.
+- The frontend origin now serves hashed `/assets/*` files with long-lived immutable cache headers and keeps the SPA shell HTML revalidating, which fits well with Cloudflare in front of the site.
+- Public R2 media uploads use a moderate shared cache policy, while public document objects use a shorter one so regenerated PDFs do not stay stale for long.
+- Authenticated PDF responses from the API are marked `private` and short-lived, so browsers can reuse them briefly without turning them into public CDN cache entries.
 - Docker publishes the services only on `127.0.0.1`, so host Caddy can reach them while they stay off the public interface.
 - `APP_ORIGIN` in `backend.env` must match the frontend origin, which is `https://waybills.orctatech.com`.
 - The backend joins `orcta_net` only so it can reach a PostgreSQL service there; host Caddy does not need that network.
@@ -152,3 +155,4 @@ Set these GitHub secrets before enabling deployment:
 - Caddy should remain the public entry point.
 - Local Docker preview works without `orcta_net`; it uses its own Postgres service.
 - Upload-dependent flows still need real R2 env values. If you leave the local R2 vars blank, the rest of the app can still be inspected, but media uploads and generated file storage will fail.
+- When you later enable Cloudflare caching, keep it in a mode that respects origin cache headers so these policies remain the source of truth.

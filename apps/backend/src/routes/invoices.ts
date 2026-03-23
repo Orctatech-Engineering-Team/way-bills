@@ -16,6 +16,7 @@ import {
   endOfBillingWeek,
   startOfBillingWeek,
 } from '../lib/billing'
+import { pdfResponseHeaders } from '../lib/cache'
 import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
 import { buildInvoicePdf } from '../lib/pdf'
@@ -341,10 +342,6 @@ invoiceRoutes.get('/:id/pdf', async (c) => {
   const bytes = await buildInvoicePdf(toInvoicePdfDetail(detail))
 
   return new Response(Buffer.from(bytes), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${detail.invoiceNumber}.pdf"`,
-      'Cache-Control': 'no-store',
-    },
+    headers: pdfResponseHeaders(`${detail.invoiceNumber}.pdf`),
   })
 })

@@ -25,6 +25,7 @@ import {
   type WaybillStatus,
 } from '../db/schema'
 import { requireAuth, type AppVariables } from '../lib/auth'
+import { pdfResponseHeaders } from '../lib/cache'
 import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
 import { decodeImageDataUrl } from '../lib/image'
@@ -1062,11 +1063,7 @@ waybillRoutes.get('/:id/pdf', async (c) => {
   })
 
   return new Response(Buffer.from(bytes), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${detail.waybillNumber}.pdf"`,
-      'Cache-Control': 'no-store',
-    },
+    headers: pdfResponseHeaders(`${detail.waybillNumber}.pdf`),
   })
 })
 
@@ -1088,10 +1085,6 @@ waybillRoutes.get('/:id/pod/pdf', async (c) => {
   })
 
   return new Response(Buffer.from(bytes), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${detail.waybillNumber}-pod.pdf"`,
-      'Cache-Control': 'no-store',
-    },
+    headers: pdfResponseHeaders(`${detail.waybillNumber}-pod.pdf`),
   })
 })
