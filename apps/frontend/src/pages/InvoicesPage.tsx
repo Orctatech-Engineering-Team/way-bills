@@ -4,12 +4,19 @@ import { useToast } from '../feedback/ToastProvider'
 import { api, invoicePdfUrl } from '../lib/api'
 import { buildCsv, downloadCsv } from '../lib/export'
 import { errorMessageFrom } from '../lib/feedback'
-import type { Client, InvoiceDetail, InvoiceStatus, InvoiceSummary } from '../lib/types'
+import type {
+  Client,
+  InvoiceAutomationStatus,
+  InvoiceDetail,
+  InvoiceStatus,
+  InvoiceSummary,
+} from '../lib/types'
 import {
   dateInputValue,
   entryModeLabel,
   endOfBillingWeek,
   formatDate,
+  formatDateTime,
   formatMoney,
   formatValue,
   shiftDateByDays,
@@ -70,24 +77,18 @@ function invoiceStatusLabel(status: InvoiceStatus) {
   return 'Issued'
 }
 
-function invoiceEmailHref(invoice: InvoiceDetail) {
-  if (!invoice.client.contactEmail) {
-    return null
-  }
+function invoiceEmailStatusLabel(status: InvoiceDetail['emailStatus']) {
+  if (status === 'sent') return 'Sent'
+  if (status === 'failed') return 'Failed'
+  if (status === 'queued') return 'Queued'
+  return 'Not sent'
+}
 
-  const subject = encodeURIComponent(`Invoice ${invoice.invoiceNumber}`)
-  const body = encodeURIComponent(
-    [
-      `Hello ${invoice.client.contactName ?? invoice.client.name},`,
-      '',
-      `Please find invoice ${invoice.invoiceNumber} for deliveries completed between ${formatDate(invoice.periodStart)} and ${formatDate(invoice.periodEnd)}.`,
-      '',
-      `Total: ${formatMoney(invoice.subtotalCents, invoice.currency)}`,
-      `PDF: ${invoicePdfUrl(invoice.id)}`,
-    ].join('\n'),
-  )
-
-  return `mailto:${invoice.client.contactEmail}?subject=${subject}&body=${body}`
+function automationStatusLabel(status: InvoiceAutomationStatus | null) {
+  if (!status) return 'Unavailable'
+  if (!status.enabled) return 'Disabled'
+  if (status.running) return 'Running'
+  return 'Monitoring'
 }
 
 export function InvoicesPage() {
@@ -95,6 +96,7 @@ export function InvoicesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [items, setItems] = useState<InvoiceSummary[]>([])
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null)
+  const [automationStatus, setAutomationStatus] = useState<InvoiceAutomationStatus | null>(null)
   const [filters, setFilters] = useState({ clientId: '', status: '' })
   const [selectedEntryMode, setSelectedEntryMode] = useState('')
   const [form, setForm] = useState<InvoiceFormState>(buildInitialForm())
@@ -144,16 +146,18 @@ export function InvoicesPage() {
     setLoading(true)
 
     try {
-      const [clientResponse, invoiceResponse] = await Promise.all([
+      const [clientResponse, invoiceResponse, automationResponse] = await Promise.all([
         api.listClients({ active: true }),
         api.listInvoices({
           clientId: filters.clientId || undefined,
           status: filters.status || undefined,
         }),
+        api.getInvoiceAutomationStatus(),
       ])
 
       setClients(clientResponse.items)
       setItems(invoiceResponse.items)
+      setAutomationStatus(automationResponse.status)
 
       const nextId = selectedId ?? selectedInvoice?.id ?? invoiceResponse.items[0]?.id ?? null
       if (nextId) {
@@ -244,6 +248,41 @@ export function InvoicesPage() {
         tone: 'error',
         title: 'Invoice update failed',
         message,
+      })
+    }
+  }
+
+  async function sendSelectedInvoiceEmail() {
+    if (!selectedInvoice) {
+      return
+    }
+
+    try {
+      const response = await api.sendInvoiceEmail(selectedInvoice.id)
+      setSelectedInvoice(response.invoice)
+      setItems((current) =>
+        current.map((item) =>
+          item.id === response.invoice.id
+            ? {
+                ...item,
+                emailStatus: response.invoice.emailStatus,
+                emailSentAt: response.invoice.emailSentAt,
+                emailDeliveryAttempts: response.invoice.emailDeliveryAttempts,
+                lastEmailError: response.invoice.lastEmailError,
+              }
+            : item,
+        ),
+      )
+      showToast({
+        tone: 'success',
+        title: 'Invoice email sent',
+        message: `${response.invoice.invoiceNumber} was emailed to ${response.invoice.client.contactEmail}.`,
+      })
+    } catch (caughtError) {
+      showToast({
+        tone: 'error',
+        title: 'Invoice email failed',
+        message: errorMessageFrom(caughtError, 'Unable to send the invoice email.'),
       })
     }
   }
@@ -367,6 +406,79 @@ export function InvoicesPage() {
           </div>
         </div>
       </div>
+
+      <Panel
+        title="Automation monitor"
+        copy="Track the weekly invoice worker, its latest completed sweep, and recent delivery issues."
+      >
+        <div className="summary-grid">
+          <div className="data-card">
+            <p className="data-label">Status</p>
+            <p className="data-value">{automationStatusLabel(automationStatus)}</p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Interval</p>
+            <p className="data-value">
+              {automationStatus ? `${automationStatus.intervalMinutes} minutes` : 'Not set'}
+            </p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Lookback</p>
+            <p className="data-value">
+              {automationStatus ? `${automationStatus.lookbackWeeks} weeks` : 'Not set'}
+            </p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Last run started</p>
+            <p className="data-value">{formatDateTime(automationStatus?.lastRunStartedAt)}</p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Last success</p>
+            <p className="data-value">{formatDateTime(automationStatus?.lastSuccessAt)}</p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Last failure</p>
+            <p className="data-value">{formatDateTime(automationStatus?.lastFailureAt)}</p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Last email failure</p>
+            <p className="data-value">{formatDateTime(automationStatus?.lastEmailFailureAt)}</p>
+          </div>
+          <div className="data-card">
+            <p className="data-label">Last status refresh</p>
+            <p className="data-value">{formatDateTime(automationStatus?.updatedAt)}</p>
+          </div>
+        </div>
+
+        {automationStatus?.lastInvoiceSummary || automationStatus?.lastEmailSummary ? (
+          <div className="summary-grid mt-3">
+            <div className="data-card">
+              <p className="data-label">Invoice sweep</p>
+              <p className="data-value">
+                {automationStatus.lastInvoiceSummary ?? 'No completed invoice sweep yet.'}
+              </p>
+            </div>
+            <div className="data-card">
+              <p className="data-label">Email delivery</p>
+              <p className="data-value">
+                {automationStatus.lastEmailSummary ?? 'No email delivery sweep yet.'}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {automationStatus?.lastError || automationStatus?.lastEmailError ? (
+          <div className="empty-state mt-3">
+            <p className="empty-state-title">Recent automation issues</p>
+            {automationStatus.lastError ? (
+              <p className="empty-state-copy">Worker: {automationStatus.lastError}</p>
+            ) : null}
+            {automationStatus.lastEmailError ? (
+              <p className="empty-state-copy">Email: {automationStatus.lastEmailError}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </Panel>
 
       <Panel
         title="Invoice register"
@@ -517,10 +629,10 @@ export function InvoicesPage() {
               >
                 Open invoice PDF
               </a>
-              {invoiceEmailHref(selectedInvoice) ? (
-                <a href={invoiceEmailHref(selectedInvoice)!} className="document-link">
-                  Prepare client email
-                </a>
+              {selectedInvoice.client.contactEmail ? (
+                <button type="button" className="document-link" onClick={() => void sendSelectedInvoiceEmail()}>
+                  {selectedInvoice.emailStatus === 'failed' ? 'Retry invoice email' : 'Send invoice email'}
+                </button>
               ) : null}
             </div>
           ) : null
@@ -559,7 +671,22 @@ export function InvoicesPage() {
                   {formatMoney(selectedInvoice.subtotalCents, selectedInvoice.currency)}
                 </p>
               </div>
+              <div className="compact-fact">
+                <p className="data-label">Email status</p>
+                <p className="data-value">{invoiceEmailStatusLabel(selectedInvoice.emailStatus)}</p>
+              </div>
+              <div className="compact-fact">
+                <p className="data-label">Last emailed</p>
+                <p className="data-value">{formatValue(selectedInvoice.emailSentAt ? formatDate(selectedInvoice.emailSentAt) : null, 'Not sent yet')}</p>
+              </div>
             </div>
+
+            {selectedInvoice.lastEmailError ? (
+              <div className="sheet-note">
+                <p className="app-label">Last email error</p>
+                <p className="sheet-note-copy">{selectedInvoice.lastEmailError}</p>
+              </div>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
               <label className="field-stack">

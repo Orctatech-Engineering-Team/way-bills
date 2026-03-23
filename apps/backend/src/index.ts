@@ -9,6 +9,7 @@ import { waybillRoutes } from './routes/waybills'
 import { reportRoutes } from './routes/reports'
 import { clientRoutes } from './routes/clients'
 import { invoiceRoutes } from './routes/invoices'
+import { notificationRoutes } from './routes/notifications'
 import { shiftRoutes } from './routes/shifts'
 import type { AppVariables } from './lib/auth'
 
@@ -38,6 +39,7 @@ app.route('/users', userRoutes)
 app.route('/waybills', waybillRoutes)
 app.route('/clients', clientRoutes)
 app.route('/invoices', invoiceRoutes)
+app.route('/notifications', notificationRoutes)
 app.route('/reports', reportRoutes)
 app.route('/shifts', shiftRoutes)
 

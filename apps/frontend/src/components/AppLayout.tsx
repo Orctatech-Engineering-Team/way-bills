@@ -1,11 +1,13 @@
-import { Link, Navigate, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, LogOut, Menu, Package2, Palette, X } from 'lucide-react'
+import { Link, Navigate, useNavigate, useRouterState } from '@tanstack/react-router'
+import { Bell, ChevronDown, LogOut, Menu, Package2, Palette, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
+import { useToast } from '../feedback/ToastProvider'
 import { formatGhanaPhoneForDisplay } from '../lib/contact'
-import type { UserRole } from '../lib/types'
-import { defaultRouteForRole } from '../lib/utils'
+import { api } from '../lib/api'
+import type { AppNotification, UserRole } from '../lib/types'
+import { defaultRouteForRole, formatDateTime } from '../lib/utils'
 import { useTheme } from '../theme/ThemeProvider'
 
 function navItemsForRole(role: UserRole) {
@@ -44,6 +46,22 @@ function sectionActive(pathname: string, itemTo: string) {
   return pathname.startsWith(itemTo)
 }
 
+function notificationToneLabel(type: AppNotification['type']) {
+  if (type === 'shift_handover_pending') {
+    return 'Shift handover'
+  }
+
+  if (type === 'failed_delivery') {
+    return 'Failed delivery'
+  }
+
+  if (type === 'invoice_ready') {
+    return 'Invoice ready'
+  }
+
+  return 'Email issue'
+}
+
 export function ProtectedScreen({
   roles,
   title,
@@ -60,24 +78,113 @@ export function ProtectedScreen({
   children: ReactNode
 }) {
   const auth = useAuth()
+  const navigate = useNavigate()
+  const { showToast } = useToast()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
   const theme = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const notificationsRef = useRef<HTMLDivElement | null>(null)
+
+  async function loadNotifications(options?: { silent?: boolean }) {
+    if (!auth.user) {
+      setNotifications([])
+      setUnreadCount(0)
+      return
+    }
+
+    if (!options?.silent) {
+      setNotificationsLoading(true)
+    }
+
+    try {
+      const response = await api.listNotifications({ limit: 12 })
+      setNotifications(response.items)
+      setUnreadCount(response.unreadCount)
+    } catch (caughtError) {
+      if (!options?.silent) {
+        showToast({
+          tone: 'error',
+          title: 'Notifications unavailable',
+          message:
+            caughtError instanceof Error
+              ? caughtError.message
+              : 'Unable to load notifications right now.',
+        })
+      }
+    } finally {
+      if (!options?.silent) {
+        setNotificationsLoading(false)
+      }
+    }
+  }
+
+  async function handleNotificationOpen(item: AppNotification) {
+    try {
+      if (!item.readAt) {
+        const response = await api.markNotificationRead(item.id)
+        setNotifications(response.items)
+        setUnreadCount(response.unreadCount)
+      }
+    } catch (caughtError) {
+      showToast({
+        tone: 'error',
+        title: 'Notification update failed',
+        message:
+          caughtError instanceof Error
+            ? caughtError.message
+            : 'Unable to update the notification.',
+      })
+    } finally {
+      setNotificationsOpen(false)
+      if (item.linkPath) {
+        void navigate({ to: item.linkPath as never })
+      }
+    }
+  }
+
+  async function handleMarkAllNotificationsRead() {
+    try {
+      setNotificationsLoading(true)
+      const response = await api.markAllNotificationsRead()
+      setNotifications(response.items)
+      setUnreadCount(response.unreadCount)
+    } catch (caughtError) {
+      showToast({
+        tone: 'error',
+        title: 'Notifications update failed',
+        message:
+          caughtError instanceof Error
+            ? caughtError.message
+            : 'Unable to mark notifications as read.',
+      })
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setMenuOpen(false)
       }
+
+      if (!notificationsRef.current?.contains(event.target as Node)) {
+        setNotificationsOpen(false)
+      }
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setMenuOpen(false)
+        setNotificationsOpen(false)
       }
     }
 
@@ -92,6 +199,7 @@ export function ProtectedScreen({
 
   useEffect(() => {
     setMenuOpen(false)
+    setNotificationsOpen(false)
     setMobileNavOpen(false)
   }, [pathname])
 
@@ -116,6 +224,43 @@ export function ProtectedScreen({
       document.removeEventListener('keydown', handleEscape)
     }
   }, [mobileNavOpen])
+
+  useEffect(() => {
+    if (!auth.user) {
+      setNotifications([])
+      setUnreadCount(0)
+      return
+    }
+
+    let active = true
+
+    async function refreshNotifications() {
+      try {
+        const response = await api.listNotifications({ limit: 12 })
+        if (!active) {
+          return
+        }
+
+        setNotifications(response.items)
+        setUnreadCount(response.unreadCount)
+      } catch {
+        if (active) {
+          setNotifications([])
+          setUnreadCount(0)
+        }
+      }
+    }
+
+    void refreshNotifications()
+    const interval = window.setInterval(() => {
+      void refreshNotifications()
+    }, 60000)
+
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [auth.user?.id])
 
   if (auth.loading) {
     return (
@@ -166,11 +311,104 @@ export function ProtectedScreen({
             <div className="header-actions">
               {actions ? <div className="topbar-primary-actions desktop-topbar-actions">{actions}</div> : null}
 
+              <div className="account-menu desktop-account-menu" ref={notificationsRef}>
+                <button
+                  type="button"
+                  className="notification-trigger"
+                  onClick={() => {
+                    const nextOpen = !notificationsOpen
+                    setNotificationsOpen(nextOpen)
+                    setMenuOpen(false)
+                    if (nextOpen) {
+                      void loadNotifications()
+                    }
+                  }}
+                  aria-expanded={notificationsOpen}
+                  aria-haspopup="menu"
+                  aria-label={
+                    unreadCount > 0
+                      ? `${unreadCount} unread notifications`
+                      : 'Open notifications'
+                  }
+                >
+                  <Bell size={17} strokeWidth={2.05} />
+                  {unreadCount > 0 ? (
+                    <span className="notification-badge">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {notificationsOpen ? (
+                  <div className="notification-dropdown" role="menu">
+                    <div className="notification-dropdown-header">
+                      <div>
+                        <p className="account-dropdown-label">Notifications</p>
+                        <p className="notification-dropdown-copy">
+                          {unreadCount > 0
+                            ? `${unreadCount} unread`
+                            : 'All caught up'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="notification-clear"
+                        onClick={() => void handleMarkAllNotificationsRead()}
+                        disabled={notificationsLoading || unreadCount === 0}
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+
+                    <div className="account-dropdown-divider" />
+
+                    {notifications.length > 0 ? (
+                      <div className="notification-list">
+                        {notifications.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`notification-item ${item.readAt ? '' : 'is-unread'}`}
+                            onClick={() => void handleNotificationOpen(item)}
+                            role="menuitem"
+                          >
+                            <div className="notification-item-head">
+                              <span className="notification-item-type">
+                                {notificationToneLabel(item.type)}
+                              </span>
+                              {!item.readAt ? (
+                                <span className="notification-item-state">New</span>
+                              ) : null}
+                            </div>
+                            <p className="notification-item-title">{item.title}</p>
+                            <p className="notification-item-message">{item.message}</p>
+                            <p className="notification-item-time">
+                              {formatDateTime(item.createdAt)}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="notification-empty">
+                        <p className="empty-state-title">No notifications yet</p>
+                        <p className="empty-state-copy">
+                          New handovers, failed deliveries, and invoice events will
+                          appear here.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
               <div className="account-menu desktop-account-menu" ref={menuRef}>
                 <button
                   type="button"
                   className="account-trigger"
-                  onClick={() => setMenuOpen((current) => !current)}
+                  onClick={() => {
+                    setMenuOpen((current) => !current)
+                    setNotificationsOpen(false)
+                  }}
                   aria-expanded={menuOpen}
                   aria-haspopup="menu"
                 >
@@ -238,6 +476,31 @@ export function ProtectedScreen({
               </div>
 
               <div className="mobile-topbar-actions">
+                <button
+                  type="button"
+                  className="notification-trigger"
+                  onClick={() => {
+                    const nextOpen = !notificationsOpen
+                    setNotificationsOpen(nextOpen)
+                    if (nextOpen) {
+                      void loadNotifications()
+                    }
+                  }}
+                  aria-expanded={notificationsOpen}
+                  aria-haspopup="dialog"
+                  aria-label={
+                    unreadCount > 0
+                      ? `${unreadCount} unread notifications`
+                      : 'Open notifications'
+                  }
+                >
+                  <Bell size={17} strokeWidth={2.05} />
+                  {unreadCount > 0 ? (
+                    <span className="notification-badge">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
                 <button
                   type="button"
                   className="mobile-menu-button"
@@ -346,6 +609,86 @@ export function ProtectedScreen({
                 >
                   <LogOut size={15} strokeWidth={2.1} />
                   Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {notificationsOpen ? (
+          <div
+            className="mobile-nav-backdrop notification-backdrop"
+            onClick={() => setNotificationsOpen(false)}
+            aria-hidden="true"
+          >
+            <div
+              className="notification-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Notifications"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mobile-nav-handle" aria-hidden="true" />
+              <div className="notification-dropdown-header">
+                <div>
+                  <p className="account-dropdown-label">Notifications</p>
+                  <p className="notification-dropdown-copy">
+                    {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-nav-close"
+                  onClick={() => setNotificationsOpen(false)}
+                  aria-label="Close notifications"
+                >
+                  <X size={18} strokeWidth={2.2} />
+                </button>
+              </div>
+
+              {notifications.length > 0 ? (
+                <div className="notification-list mobile">
+                  {notifications.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`notification-item ${item.readAt ? '' : 'is-unread'}`}
+                      onClick={() => void handleNotificationOpen(item)}
+                    >
+                      <div className="notification-item-head">
+                        <span className="notification-item-type">
+                          {notificationToneLabel(item.type)}
+                        </span>
+                        {!item.readAt ? (
+                          <span className="notification-item-state">New</span>
+                        ) : null}
+                      </div>
+                      <p className="notification-item-title">{item.title}</p>
+                      <p className="notification-item-message">{item.message}</p>
+                      <p className="notification-item-time">
+                        {formatDateTime(item.createdAt)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="notification-empty">
+                  <p className="empty-state-title">No notifications yet</p>
+                  <p className="empty-state-copy">
+                    New handovers, failed deliveries, and invoice events will
+                    appear here.
+                  </p>
+                </div>
+              )}
+
+              <div className="notification-sheet-actions">
+                <button
+                  type="button"
+                  className="account-dropdown-action"
+                  onClick={() => void handleMarkAllNotificationsRead()}
+                  disabled={notificationsLoading || unreadCount === 0}
+                >
+                  Mark all read
                 </button>
               </div>
             </div>

@@ -28,6 +28,7 @@ import { requireAuth, type AppVariables } from '../lib/auth'
 import { AppError, assert } from '../lib/errors'
 import { parseJson } from '../lib/http'
 import { decodeImageDataUrl } from '../lib/image'
+import { createRoleNotifications } from '../lib/notifications'
 import { buildPodPdf, buildWaybillPdf } from '../lib/pdf'
 import type { WaybillDetail as PdfWaybillDetail } from '../lib/pdf.types'
 import { decodeSignatureDataUrl } from '../lib/signature'
@@ -891,6 +892,16 @@ waybillRoutes.patch('/:id/assign', async (c) => {
       where: eq(waybills.id, waybillId),
     })
   })
+
+  if (updated?.status === 'failed') {
+    await createRoleNotifications(['admin', 'ops'], {
+      type: 'failed_delivery',
+      title: 'Failed delivery recorded',
+      message: `${updated.waybillNumber} was marked failed${updated.customerName ? ` for ${updated.customerName}` : ''}.`,
+      linkPath: `/ops/waybills/${updated.id}`,
+      eventKey: `failed_delivery:${updated.id}`,
+    })
+  }
 
   return c.json({ waybill: updated })
 })

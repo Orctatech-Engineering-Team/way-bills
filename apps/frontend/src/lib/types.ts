@@ -1,5 +1,12 @@
 export type UserRole = 'admin' | 'ops' | 'rider'
 export type InvoiceStatus = 'issued' | 'paid' | 'void'
+export type InvoiceSource = 'manual' | 'automatic'
+export type InvoiceEmailStatus = 'not_sent' | 'queued' | 'sent' | 'failed'
+export type NotificationType =
+  | 'shift_handover_pending'
+  | 'failed_delivery'
+  | 'invoice_ready'
+  | 'invoice_email_failed'
 
 export type WaybillStatus =
   | 'created'
@@ -185,6 +192,11 @@ export type InvoiceSummary = {
   currency: string
   subtotalCents: number
   status: InvoiceStatus
+  source: InvoiceSource
+  emailStatus: InvoiceEmailStatus
+  emailSentAt: string | null
+  emailDeliveryAttempts: number
+  lastEmailError: string | null
   periodStart: string
   periodEnd: string
   issuedAt: string
@@ -216,6 +228,11 @@ export type InvoiceDetail = {
   periodEnd: string
   subtotalCents: number
   status: InvoiceStatus
+  source: InvoiceSource
+  emailStatus: InvoiceEmailStatus
+  emailSentAt: string | null
+  emailDeliveryAttempts: number
+  lastEmailError: string | null
   issuedAt: string
   dueAt: string
   paidAt: string | null
@@ -224,6 +241,24 @@ export type InvoiceDetail = {
   createdAt: string
   client: Client
   items: InvoiceItem[]
+}
+
+export type InvoiceAutomationStatus = {
+  jobName: string
+  enabled: boolean
+  running: boolean
+  intervalMinutes: number
+  lookbackWeeks: number
+  lastRunStartedAt: string | null
+  lastRunFinishedAt: string | null
+  lastSuccessAt: string | null
+  lastFailureAt: string | null
+  lastError: string | null
+  lastInvoiceSummary: string | null
+  lastEmailSummary: string | null
+  lastEmailFailureAt: string | null
+  lastEmailError: string | null
+  updatedAt: string | null
 }
 
 export type ShiftHandover = {
@@ -261,6 +296,18 @@ export type ShiftTimelineItem = {
   timestamp: string
   title: string
   detail: string
+}
+
+export type AppNotification = {
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  linkPath: string | null
+  eventKey: string | null
+  readAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type ShiftDashboard = {
