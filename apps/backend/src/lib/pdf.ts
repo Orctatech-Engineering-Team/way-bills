@@ -1,10 +1,11 @@
-import { PDF, StandardFonts, rgb } from '@libpdf/core'
+import { PDF, StandardFonts, rgb, ops, PdfString, type RGB, type EmbeddedFont } from '@libpdf/core'
 import type {
   InvoicePdfDetail,
   ProofOfDelivery,
   StatusLogEntry,
   WaybillDetail,
 } from './pdf.types'
+import { startOfBillingWeek } from './billing'
 
 type PdfContext = {
   pdf: PDF
@@ -522,53 +523,357 @@ export async function buildWaybillPdf(waybill: WaybillDetail) {
   return context.pdf.save()
 }
 
-export async function buildInvoicePdf(invoice: InvoicePdfDetail) {
-  const context = createDocument(`Invoice ${invoice.invoiceNumber}`, 'CLIENT INVOICE')
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand configuration  (override any field via environment variables)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  drawDocumentHeader(context, {
-    eyebrow: 'Billing document',
-    title: 'Weekly client invoice',
-    subtitle:
-      'Charge summary generated from completed deliveries within the selected billing window.',
-    rightTopLabel: 'Invoice number',
-    rightTopValue: invoice.invoiceNumber,
-    rightBottomLabel: 'Invoice status',
-    rightBottomValue: invoice.status.toUpperCase(),
-  })
+const BRAND = {
+  companyName:   Bun.env.COMPANY_NAME          ?? 'Orcta Technologies',
+  ceoName:       Bun.env.CEO_NAME              ?? 'Mark Owusu Agyemang',
+  ceoTitle:      Bun.env.CEO_TITLE             ?? 'Chief Executive Officer',
+  phone:         Bun.env.COMPANY_PHONE         ?? '+233 50 271 6271',
+  email:         Bun.env.COMPANY_EMAIL         ?? 'info@orctatech.com',
+  bankName:      Bun.env.BANK_NAME             ?? 'Call Bank',
+  accountNumber: Bun.env.BANK_ACCOUNT_NUMBER   ?? '1400009200241',
+  accountName:   Bun.env.BANK_ACCOUNT_NAME     ?? 'Orcta Technologies',
+} as const
 
-  drawSectionHeader(
-    context,
-    'Client and billing period',
-    'Commercial account information, billing window, and the payment frame attached to this invoice.',
+const INV_BLUE     = rgb(0.13, 0.22, 0.72)
+const INV_CHARCOAL = rgb(0.26, 0.26, 0.28)
+const INV_INK      = rgb(0.08, 0.10, 0.13)
+const INV_LINE     = rgb(0.76, 0.77, 0.79)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invoice helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function invFormatDate(iso: string): string {
+  const d  = new Date(iso)
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  return `${dd}/${mm}/${d.getUTCFullYear()}`
+}
+
+function invDueLabel(issuedAt: string, dueAt: string): string {
+  const days = Math.round(
+    (new Date(dueAt).getTime() - new Date(issuedAt).getTime()) / 86_400_000,
   )
-  drawFieldGrid(context, [
-    ['Client account', invoice.client.name],
-    ['Currency', invoice.currency],
-    ['Issued at', invoice.issuedAt],
-    ['Due at', invoice.dueAt],
-    ['Billing period', `${invoice.periodStart} to ${invoice.periodEnd}`],
-    ['Payment terms', `${invoice.client.paymentTermsDays} day(s)`],
-    ['Subtotal', moneyValue(invoice.subtotalCents, invoice.currency)],
-    ['Client contact', normaliseValue(invoice.client.contactName)],
-  ])
-  drawTextBlock(context, 'Billing address', normaliseValue(invoice.client.billingAddress))
+  if (days <= 0) return 'IMMEDIATELY'
+  return `IN ${days} DAY${days === 1 ? '' : 'S'}`
+}
 
-  if (invoice.notes) {
-    drawTextBlock(context, 'Invoice notes', invoice.notes, 64)
+function invMoney(cents: number, currency: string, compact = false): string {
+  const amount = (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: compact ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+  const symbol = currency === 'GHS' ? '\u20B5' : `${currency} `
+  return `${symbol}${amount}`
+}
+
+type InvWeek = {
+  label:      string
+  unit:       number
+  priceCents: number | null   // null = flat / mixed rate
+  totalCents: number
+}
+
+function groupByWeek(items: InvoicePdfDetail['items']): InvWeek[] {
+  const map  = new Map<string, InvoicePdfDetail['items']>()
+  const misc: InvoicePdfDetail['items'] = []
+
+  for (const item of items) {
+    if (!item.completionTime) { misc.push(item); continue }
+    const key = startOfBillingWeek(new Date(item.completionTime)).toISOString().slice(0, 10)
+    const g   = map.get(key) ?? []
+    g.push(item)
+    map.set(key, g)
   }
 
-  drawRecordList(
-    context,
-    'Billable delivery lines',
-    invoice.items.map((item) => ({
-      title: `${item.waybillNumber} | ${item.orderReference}`,
-      meta: `${normaliseValue(item.customerName)} | ${normaliseValue(item.completionTime)} | ${item.pricingTier}`,
-      right: moneyValue(item.amountCents, invoice.currency),
-    })),
-    'No billable deliveries were attached to this invoice.',
+  const weeks = [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, wItems], i) => {
+      const totalCents = wItems.reduce((s, x) => s + x.amountCents, 0)
+      const rates      = new Set(wItems.map(x => x.amountCents))
+      const allStd     = wItems.every(x => x.pricingTier === 'standard')
+      return {
+        label:      `Week ${i + 1}`,
+        unit:       wItems.length,
+        priceCents: rates.size === 1 && allStd ? wItems[0].amountCents : null,
+        totalCents,
+      }
+    })
+
+  if (misc.length > 0) {
+    weeks.push({
+      label:      'Misc',
+      unit:       misc.length,
+      priceCents: null,
+      totalCents: misc.reduce((s, x) => s + x.amountCents, 0),
+    })
+  }
+  return weeks
+}
+
+function drawSpacedText(
+  page:  ReturnType<PDF['addPage']>,
+  text:  string,
+  x:     number,
+  y:     number,
+  size:  number,
+  color: RGB,
+  spacing: number,
+  font:  EmbeddedFont,
+) {
+  const fontName = page.registerFont(font)
+  const codes    = font.encodeText(text)
+  const hexStr   = codes.map((c: number) => c.toString(16).padStart(4, '0')).join('')
+  const pdfStr   = PdfString.fromHex(hexStr)
+
+  page.drawOperators([
+    ops.pushGraphicsState(),
+    ops.beginText(),
+    ops.setNonStrokingRGB(color.red, color.green, color.blue),
+    ops.setCharSpacing(spacing),
+    ops.setFont(fontName, size),
+    ops.setTextMatrix(1, 0, 0, 1, x, y),
+    ops.showText(pdfStr),
+    ops.endText(),
+    ops.popGraphicsState(),
+  ])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// buildInvoicePdf  – branded Orcta layout
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function buildInvoicePdf(invoice: InvoicePdfDetail) {
+  // Load brand assets (non-fatal if unavailable)
+  let logoBytes:    Uint8Array | null = null
+  let sigBytes:     Uint8Array | null = null
+  let regularBytes: Uint8Array | null = null
+  let boldBytes:    Uint8Array | null = null
+
+  try { logoBytes    = await Bun.file(new URL('./assets/logo.jpg',           import.meta.url)).bytes() } catch { /* skip */ }
+  try { sigBytes     = await Bun.file(new URL('./assets/signature.jpg',      import.meta.url)).bytes() } catch { /* skip */ }
+  try { regularBytes = await Bun.file(new URL('./assets/NotoSans-Regular.ttf', import.meta.url)).bytes() } catch { /* skip */ }
+  try { boldBytes    = await Bun.file(new URL('./assets/NotoSans-Bold.ttf',    import.meta.url)).bytes() } catch { /* skip */ }
+
+  const pdf = PDF.create()
+  pdf.setTitle(`Invoice ${invoice.invoiceNumber}`)
+  pdf.setAuthor(BRAND.companyName)
+  pdf.setCreator(BRAND.companyName)
+  pdf.setProducer('@libpdf/core')
+  pdf.setCreationDate(new Date())
+  pdf.setModificationDate(new Date())
+
+  const page      = pdf.addPage({ size: 'letter' })
+  const logoImage = logoBytes ? pdf.embedJpeg(logoBytes) : null
+  const sigImage  = sigBytes  ? pdf.embedJpeg(sigBytes)  : null
+
+  // Embed Noto Sans for full Unicode support (₵ etc.)
+  // Falls back to standard Helvetica if fonts are unavailable.
+  const regularFont: EmbeddedFont | null = regularBytes ? pdf.embedFont(regularBytes) : null
+  const boldFont:    EmbeddedFont | null = boldBytes    ? pdf.embedFont(boldBytes)    : null
+
+  const fontRegular = (regularFont ?? StandardFonts.Helvetica)     as EmbeddedFont
+  const fontBold    = (boldFont    ?? StandardFonts.HelveticaBold)  as EmbeddedFont
+
+  const M = 50  // page margin
+
+  // ── Decorative parallelograms – top-left header ───────────────────────────
+  page.drawPath()
+    .moveTo(0, PAGE_HEIGHT - 38).lineTo(0, PAGE_HEIGHT)
+    .lineTo(220, PAGE_HEIGHT).lineTo(152, PAGE_HEIGHT - 38)
+    .close().fill({ color: INV_BLUE })
+
+  page.drawPath()
+    .moveTo(168, PAGE_HEIGHT - 38).lineTo(200, PAGE_HEIGHT)
+    .lineTo(264, PAGE_HEIGHT).lineTo(232, PAGE_HEIGHT - 38)
+    .close().fill({ color: INV_CHARCOAL })
+
+  // ── Decorative parallelograms – bottom-right footer ───────────────────────
+  page.drawPath()
+    .moveTo(PAGE_WIDTH - 220, 0).lineTo(PAGE_WIDTH - 152, 38)
+    .lineTo(PAGE_WIDTH, 38).lineTo(PAGE_WIDTH, 0)
+    .close().fill({ color: INV_BLUE })
+
+  page.drawPath()
+    .moveTo(PAGE_WIDTH - 264, 0).lineTo(PAGE_WIDTH - 232, 38)
+    .lineTo(PAGE_WIDTH - 168, 38).lineTo(PAGE_WIDTH - 200, 0)
+    .close().fill({ color: INV_CHARCOAL })
+
+  // ── Invoice number (wide-spaced) + logo ───────────────────────────────────
+  const titleY  = PAGE_HEIGHT - 80
+  const seqPart = (invoice.invoiceNumber.split('-').pop() ?? '0000').padStart(4, '0')
+  drawSpacedText(page, `INVOICE #${seqPart}`, M, titleY, 22, INV_BLUE, 2.5, fontBold)
+
+  if (logoImage) {
+    const lh = 26
+    const lw = Math.round((logoImage.width / logoImage.height) * lh)
+    page.drawImage(logoImage, { x: PAGE_WIDTH - M - lw, y: titleY, width: lw, height: lh })
+  }
+
+  // ── Issued / Due dates ────────────────────────────────────────────────────
+  page.drawText(`ISSUED: ${invFormatDate(invoice.issuedAt)}`, {
+    x: M, y: titleY - 28,
+    font: fontBold, size: 8.5, color: INV_INK,
+  })
+  page.drawText(`DUE: ${invDueLabel(invoice.issuedAt, invoice.dueAt)}`, {
+    x: M, y: titleY - 42,
+    font: fontBold, size: 8.5, color: INV_INK,
+  })
+
+  // ── Rule 1 ────────────────────────────────────────────────────────────────
+  const rule1Y = titleY - 58
+  page.drawLine({
+    start: { x: M, y: rule1Y }, end: { x: PAGE_WIDTH - M, y: rule1Y },
+    color: INV_LINE, thickness: 0.75,
+  })
+
+  // ── Bill To / Payable To ──────────────────────────────────────────────────
+  const billY = rule1Y - 16
+  const halfW = (PAGE_WIDTH - M * 2) / 2
+  const payX  = M + halfW
+
+  page.drawText('BILL TO:', { x: M, y: billY, font: fontBold, size: 9, color: INV_INK })
+  page.drawText(invoice.client.name, {
+    x: M, y: billY - 16,
+    font: fontRegular, size: 10, color: INV_INK, maxWidth: halfW - 10,
+  })
+
+  page.drawText('PAYABLE TO:', { x: payX, y: billY, font: fontBold, size: 9, color: INV_INK })
+  const bankLines = [
+    `Bank - ${BRAND.bankName}`,
+    `Account Number - ${BRAND.accountNumber}`,
+    `Account Name - ${BRAND.accountName}`,
+  ]
+  bankLines.forEach((line, i) => {
+    page.drawText(line, {
+      x: payX, y: billY - 16 - i * 14,
+      font: fontRegular, size: 9.5, color: INV_INK, maxWidth: halfW - 10,
+    })
+  })
+
+  // ── Rule 2 ────────────────────────────────────────────────────────────────
+  const rule2Y = billY - 68
+  page.drawLine({
+    start: { x: M, y: rule2Y }, end: { x: PAGE_WIDTH - M, y: rule2Y },
+    color: INV_LINE, thickness: 0.75,
+  })
+
+  // ── Table column layout ───────────────────────────────────────────────────
+  // DESCRIPTION | UNIT | PRICE | NET SUBTOTAL
+  const CW        = PAGE_WIDTH - M * 2
+  const colDescX  = M
+  const colDescW  = Math.round(CW * 0.44)
+  const colUnitX  = colDescX  + colDescW  + 4
+  const colUnitW  = Math.round(CW * 0.12)
+  const colPriceX = colUnitX  + colUnitW  + 4
+  const colPriceW = Math.round(CW * 0.16)
+  const colSubX   = colPriceX + colPriceW + 4
+  const colSubW   = PAGE_WIDTH - M - colSubX
+
+  // Header row
+  const tHdrY = rule2Y - 22
+  page.drawText('DESCRIPTION',  { x: colDescX,  y: tHdrY, font: fontBold, size: 8.5, color: INV_INK })
+  page.drawText('UNIT',         { x: colUnitX,  y: tHdrY, font: fontBold, size: 8.5, color: INV_INK, maxWidth: colUnitW,  alignment: 'center' })
+  page.drawText('PRICE',        { x: colPriceX, y: tHdrY, font: fontBold, size: 8.5, color: INV_INK, maxWidth: colPriceW, alignment: 'center' })
+  page.drawText('NET SUBTOTAL', { x: colSubX,   y: tHdrY, font: fontBold, size: 8.5, color: INV_INK, maxWidth: colSubW,   alignment: 'right'  })
+
+  const tLineY = tHdrY - 12
+  page.drawLine({ start: { x: M, y: tLineY }, end: { x: PAGE_WIDTH - M, y: tLineY }, color: INV_LINE, thickness: 0.5 })
+
+  // Data rows
+  const weeks = groupByWeek(invoice.items)
+  const rowH  = 36
+  let   rowY  = tLineY - 18
+
+  for (const week of weeks) {
+    page.drawText(week.label, { x: colDescX, y: rowY, font: fontRegular, size: 10, color: INV_INK })
+    page.drawText(String(week.unit), {
+      x: colUnitX, y: rowY,
+      font: fontRegular, size: 10, color: INV_INK, maxWidth: colUnitW, alignment: 'center',
+    })
+    const priceStr = week.priceCents !== null
+      ? invMoney(week.priceCents, invoice.currency, true)
+      : 'Flat Rate'
+    page.drawText(priceStr, {
+      x: colPriceX, y: rowY,
+      font: fontRegular, size: 10, color: INV_INK, maxWidth: colPriceW, alignment: 'center',
+    })
+    page.drawText(invMoney(week.totalCents, invoice.currency), {
+      x: colSubX, y: rowY,
+      font: fontRegular, size: 10, color: INV_INK, maxWidth: colSubW, alignment: 'right',
+    })
+    // Row separator
+    page.drawLine({
+      start: { x: M, y: rowY - 18 }, end: { x: PAGE_WIDTH - M, y: rowY - 18 },
+      color: INV_LINE, thickness: 0.3,
+    })
+    rowY -= rowH
+  }
+
+  // ── Total row ─────────────────────────────────────────────────────────────
+  const totalBarY = rowY - 6
+  page.drawLine({
+    start: { x: colSubX, y: totalBarY }, end: { x: PAGE_WIDTH - M, y: totalBarY },
+    color: INV_INK, thickness: 0.75,
+  })
+
+  const totalRowY = totalBarY - 18
+  page.drawText('TOTAL', {
+    x: colPriceX, y: totalRowY,
+    font: fontBold, size: 9.5, color: INV_INK, maxWidth: colPriceW, alignment: 'right',
+  })
+  page.drawText(invMoney(invoice.subtotalCents, invoice.currency), {
+    x: colSubX, y: totalRowY,
+    font: fontBold, size: 10, color: INV_INK, maxWidth: colSubW, alignment: 'right',
+  })
+
+  // ── Amount Due ────────────────────────────────────────────────────────────
+  const amtDueY = totalRowY - 42
+  drawSpacedText(
+    page,
+    `AMOUNT DUE:  ${invMoney(invoice.subtotalCents, invoice.currency)}`,
+    M + 90, amtDueY, 16, INV_BLUE, 2, fontBold,
   )
 
-  return context.pdf.save()
+  // ── Signature block ───────────────────────────────────────────────────────
+  let dotY = amtDueY - 110
+
+  if (sigImage) {
+    const sigW    = 110
+    const sigH    = Math.round((sigImage.height / sigImage.width) * sigW)
+    const sigTopY = amtDueY - 26
+    page.drawImage(sigImage, { x: M, y: sigTopY - sigH, width: sigW, height: sigH })
+    dotY = sigTopY - sigH - 10
+  }
+
+  // Dotted line under signature image
+  page.drawLine({
+    start: { x: M, y: dotY }, end: { x: M + 190, y: dotY },
+    color: INV_INK, thickness: 0.75, dashArray: [2, 3], dashPhase: 0,
+  })
+  page.drawText(BRAND.ceoTitle, { x: M, y: dotY - 14, font: fontBold,    size: 9.5, color: INV_INK })
+  page.drawText(BRAND.ceoName,  { x: M, y: dotY - 28, font: fontRegular, size: 9.5, color: INV_INK })
+
+  // ── Footer contacts ───────────────────────────────────────────────────────
+  const footerY = 58
+  const r       = 8
+
+  // Phone icon (filled blue circle + white "T")
+  page.drawPath().circle(M + r, footerY + r, r).fill({ color: INV_BLUE })
+  page.drawText('T', { x: M + r - 3, y: footerY + r - 3, font: fontBold,    size: 7,   color: rgb(1, 1, 1) })
+  page.drawText(BRAND.phone, { x: M + r * 2 + 5, y: footerY + 3, font: fontRegular, size: 9.5, color: INV_INK })
+
+  // Email icon (filled blue circle + white "@")
+  const emX = M + 180
+  page.drawPath().circle(emX + r, footerY + r, r).fill({ color: INV_BLUE })
+  page.drawText('@', { x: emX + r - 4, y: footerY + r - 3, font: fontBold,    size: 7,   color: rgb(1, 1, 1) })
+  page.drawText(BRAND.email, { x: emX + r * 2 + 5, y: footerY + 3, font: fontRegular, size: 9.5, color: INV_INK })
+
+  return pdf.save()
 }
 
 export async function buildPodPdf(options: {
