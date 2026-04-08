@@ -3,10 +3,12 @@ import type {
   BillingReportResponse,
   Client,
   InvoiceDetail,
+  InvoiceAutomationStatus,
   InvoiceSummary,
   ProofOfDelivery,
   ShiftDashboard,
   ShiftReportResponse,
+  AppNotification,
   User,
   WaybillDetail,
   WaybillSummary,
@@ -309,6 +311,9 @@ export const api = {
   async getInvoice(id: string) {
     return request<{ invoice: InvoiceDetail }>(`/invoices/${id}`)
   },
+  async getInvoiceAutomationStatus() {
+    return request<{ status: InvoiceAutomationStatus }>('/invoices/automation-status')
+  },
   async createInvoice(input: {
     clientId: string
     start: string
@@ -325,6 +330,31 @@ export const api = {
     return request<{ invoice: InvoiceDetail }>(`/invoices/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    })
+  },
+  async sendInvoiceEmail(id: string) {
+    return request<{ invoice: InvoiceDetail }>(`/invoices/${id}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  },
+  async listNotifications(input?: { unreadOnly?: boolean; limit?: number }) {
+    const search = new URLSearchParams()
+    if (input?.unreadOnly) search.set('unread_only', 'true')
+    if (input?.limit) search.set('limit', String(input.limit))
+    const suffix = search.size > 0 ? `?${search.toString()}` : ''
+    return request<{ items: AppNotification[]; unreadCount: number }>(`/notifications${suffix}`)
+  },
+  async markNotificationRead(id: string) {
+    return request<{ items: AppNotification[]; unreadCount: number }>(`/notifications/${id}/read`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  },
+  async markAllNotificationsRead() {
+    return request<{ items: AppNotification[]; unreadCount: number }>('/notifications/read-all', {
+      method: 'POST',
+      body: JSON.stringify({}),
     })
   },
   async getBillingReport(input: {

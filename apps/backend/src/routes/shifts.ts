@@ -10,6 +10,7 @@ import {
 import { requireAuth, type AppVariables } from '../lib/auth'
 import { AppError, assert } from '../lib/errors'
 import { parseInput, parseJson } from '../lib/http'
+import { createUserNotification } from '../lib/notifications'
 import { buildShiftTimeline, computeShiftReportTotals } from '../lib/shifts'
 import { dateOnlyField, optionalNullableText, requiredId } from '../lib/validation'
 
@@ -418,6 +419,15 @@ shiftRoutes.post('/handover', async (c) => {
     note: input.note ?? null,
     initiatedAt: now,
     outgoingConfirmedAt: now,
+  })
+
+  await createUserNotification({
+    userId: incomingRider.id,
+    type: 'shift_handover_pending',
+    title: 'Shift handover pending',
+    message: `${currentUser.name} started a shift handover to you.`,
+    linkPath: '/rider/jobs',
+    eventKey: `shift_handover_pending:${activeShift.id}`,
   })
 
   return c.json(await getShiftDashboard(currentUser.id), 201)

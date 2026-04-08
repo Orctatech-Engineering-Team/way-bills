@@ -1,25 +1,21 @@
 import { Hono } from 'hono'
-import { and, asc, count, desc, eq, gte, isNull, lte } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/client'
-import {
-  clients,
-  invoiceItems,
-  invoices,
-  users,
-  waybills,
-  type InvoiceStatus,
-} from '../db/schema'
+import { clients, invoices, type InvoiceStatus } from '../db/schema'
 import { requireAuth, requireRole, type AppVariables } from '../lib/auth'
-import {
-  calculateDeliveryCharges,
-  endOfBillingWeek,
-  startOfBillingWeek,
-} from '../lib/billing'
 import { AppError, assert } from '../lib/errors'
+import { getInvoiceAutomationStatus } from '../lib/automation-status'
 import { parseJson } from '../lib/http'
+import {
+  createInvoiceForWindow,
+  getInvoiceDetail,
+  invoiceWindowFromDateRange,
+  serializeInvoiceDetail,
+  toInvoicePdfDetail,
+} from '../lib/invoices'
 import { buildInvoicePdf } from '../lib/pdf'
-import type { InvoicePdfDetail } from '../lib/pdf.types'
+import { sendInvoiceEmail } from '../lib/invoice-email'
 import { dateOnlyField, optionalNullableText, requiredId } from '../lib/validation'
 
 const createInvoiceSchema = z.object({
@@ -35,101 +31,6 @@ const updateInvoiceStatusSchema = z.object({
     error: 'Invoice status must be paid or void.',
   }),
 })
-
-function createInvoiceNumber(date: Date, sequence: number) {
-  const stamp = date.toISOString().slice(0, 10).replaceAll('-', '')
-  return `INV-${stamp}-${String(sequence).padStart(3, '0')}`
-}
-
-function serializeInvoiceDetail(detail: Awaited<ReturnType<typeof getInvoiceDetail>>) {
-  return {
-    ...detail,
-    periodStart: detail.periodStart.toISOString(),
-    periodEnd: detail.periodEnd.toISOString(),
-    issuedAt: detail.issuedAt.toISOString(),
-    dueAt: detail.dueAt.toISOString(),
-    paidAt: detail.paidAt?.toISOString() ?? null,
-    createdAt: detail.createdAt.toISOString(),
-    client: {
-      ...detail.client,
-      createdAt: detail.client.createdAt.toISOString(),
-    },
-    items: detail.items.map((item) => ({
-      ...item,
-      completionTime: item.completionTime?.toISOString() ?? null,
-      createdAt: item.createdAt.toISOString(),
-    })),
-  }
-}
-
-async function getInvoiceDetail(id: string) {
-  const invoice = await db.query.invoices.findFirst({
-    where: eq(invoices.id, id),
-  })
-
-  assert(invoice, new AppError(404, 'not_found', 'Invoice not found.'))
-
-  const client = await db.query.clients.findFirst({
-    where: eq(clients.id, invoice.clientId),
-  })
-  assert(client, new AppError(404, 'not_found', 'Client not found.'))
-
-  const items = await db
-    .select({
-      id: invoiceItems.id,
-      invoiceId: invoiceItems.invoiceId,
-      waybillId: invoiceItems.waybillId,
-      entryMode: waybills.entryMode,
-      amountCents: invoiceItems.amountCents,
-      pricingTier: invoiceItems.pricingTier,
-      createdAt: invoiceItems.createdAt,
-      waybillNumber: waybills.waybillNumber,
-      orderReference: waybills.orderReference,
-      customerName: waybills.customerName,
-      completionTime: waybills.completionTime,
-    })
-    .from(invoiceItems)
-    .innerJoin(waybills, eq(waybills.id, invoiceItems.waybillId))
-    .where(eq(invoiceItems.invoiceId, id))
-    .orderBy(asc(waybills.completionTime))
-
-  return {
-    ...invoice,
-    client,
-    items,
-  }
-}
-
-function toInvoicePdfDetail(detail: Awaited<ReturnType<typeof getInvoiceDetail>>): InvoicePdfDetail {
-  return {
-    id: detail.id,
-    invoiceNumber: detail.invoiceNumber,
-    status: detail.status,
-    currency: detail.currency,
-    periodStart: detail.periodStart.toISOString().slice(0, 10),
-    periodEnd: detail.periodEnd.toISOString().slice(0, 10),
-    subtotalCents: detail.subtotalCents,
-    issuedAt: detail.issuedAt.toISOString(),
-    dueAt: detail.dueAt.toISOString(),
-    paidAt: detail.paidAt?.toISOString() ?? null,
-    notes: detail.notes,
-    client: {
-      ...detail.client,
-      createdAt: detail.client.createdAt.toISOString(),
-    },
-    items: detail.items.map((item) => ({
-      id: item.id,
-      waybillId: item.waybillId,
-      waybillNumber: item.waybillNumber,
-      orderReference: item.orderReference,
-      entryMode: item.entryMode as 'live' | 'historical',
-      customerName: item.customerName ?? 'Unnamed recipient',
-      completionTime: item.completionTime?.toISOString() ?? null,
-      amountCents: item.amountCents,
-      pricingTier: item.pricingTier as 'standard' | 'overflow',
-    })),
-  }
-}
 
 export const invoiceRoutes = new Hono<{ Variables: AppVariables }>()
 invoiceRoutes.use('*', requireAuth, requireRole(['admin', 'ops']))
@@ -156,6 +57,11 @@ invoiceRoutes.get('/', async (c) => {
       currency: invoices.currency,
       subtotalCents: invoices.subtotalCents,
       status: invoices.status,
+      source: invoices.source,
+      emailStatus: invoices.emailStatus,
+      emailSentAt: invoices.emailSentAt,
+      emailDeliveryAttempts: invoices.emailDeliveryAttempts,
+      lastEmailError: invoices.lastEmailError,
       periodStart: invoices.periodStart,
       periodEnd: invoices.periodEnd,
       issuedAt: invoices.issuedAt,
@@ -171,6 +77,11 @@ invoiceRoutes.get('/', async (c) => {
   return c.json({ items, total: items.length })
 })
 
+invoiceRoutes.get('/automation-status', async (c) => {
+  const status = await getInvoiceAutomationStatus()
+  return c.json({ status })
+})
+
 invoiceRoutes.get('/:id', async (c) => {
   const detail = await getInvoiceDetail(c.req.param('id'))
   return c.json({ invoice: serializeInvoiceDetail(detail) })
@@ -179,140 +90,22 @@ invoiceRoutes.get('/:id', async (c) => {
 invoiceRoutes.post('/', async (c) => {
   const currentUser = c.get('user')
   const input = await parseJson(c, createInvoiceSchema.parse)
-  const client = await db.query.clients.findFirst({
-    where: eq(clients.id, input.clientId),
-  })
-
-  assert(client, new AppError(404, 'not_found', 'Client not found.'))
-
-  const startDate = new Date(`${input.start}T00:00:00.000Z`)
-  const endDate = new Date(`${input.end}T23:59:59.999Z`)
-
-  const eligibleWaybills = await db
-    .select({
-      id: waybills.id,
-      waybillNumber: waybills.waybillNumber,
-      orderReference: waybills.orderReference,
-      customerName: waybills.customerName,
-      completionTime: waybills.completionTime,
-    })
-    .from(waybills)
-    .leftJoin(invoiceItems, eq(invoiceItems.waybillId, waybills.id))
-    .where(
-      and(
-        eq(waybills.clientId, input.clientId),
-        eq(waybills.status, 'delivered'),
-        gte(waybills.completionTime, startDate),
-        lte(waybills.completionTime, endDate),
-        isNull(invoiceItems.id),
-      ),
-    )
-    .orderBy(asc(waybills.completionTime))
-
-  assert(
-    eligibleWaybills.length > 0,
-    new AppError(
-      400,
-      'no_waybills',
-      'There are no delivered uninvoiced waybills for that client and period.',
-    ),
-  )
-
-  const weekStarts = eligibleWaybills
-    .map((item) => item.completionTime)
-    .filter((value): value is Date => Boolean(value))
-    .map((value) => startOfBillingWeek(value))
-  const billingWindowStart = weekStarts.reduce((earliest, current) =>
-    current < earliest ? current : earliest)
-  const billingWindowEnd = weekStarts
-    .map((value) => endOfBillingWeek(value))
-    .reduce((latest, current) => (current > latest ? current : latest))
-
-  const deliveredInCoveredWeeks = await db
-    .select({
-      id: waybills.id,
-      clientId: waybills.clientId,
-      completionTime: waybills.completionTime,
-    })
-    .from(waybills)
-    .where(
-      and(
-        eq(waybills.clientId, input.clientId),
-        eq(waybills.status, 'delivered'),
-        gte(waybills.completionTime, billingWindowStart),
-        lte(waybills.completionTime, billingWindowEnd),
-      ),
-    )
-
-  const chargeMap = calculateDeliveryCharges(
-    deliveredInCoveredWeeks,
-    new Map([
-      [
-        client.id,
-        {
-          clientId: client.id,
-          standardDeliveryRateCents: client.standardDeliveryRateCents,
-          weeklyBandLimit: client.weeklyBandLimit,
-          overflowDeliveryRateCents: client.overflowDeliveryRateCents,
-        },
-      ],
-    ]),
-  )
-
-  const pricedWaybills = eligibleWaybills.map((item) => {
-    const charge = chargeMap.get(item.id)
-
-    return {
-      ...item,
-      amountCents: charge?.deliveryChargeCents ?? client.standardDeliveryRateCents,
-      pricingTier: charge?.pricingTier ?? 'standard',
-    }
-  })
-
-  const [summary] = await db.select({ count: count() }).from(invoices)
-  const now = new Date()
+  const { periodStart, periodEnd } = invoiceWindowFromDateRange(input.start, input.end)
   const dueAt = input.dueDate
     ? new Date(`${input.dueDate}T23:59:59.999Z`)
-    : new Date(now.getTime() + client.paymentTermsDays * 86400000)
-  const subtotalCents = pricedWaybills.reduce(
-    (total, item) => total + item.amountCents,
-    0,
-  )
+    : null
 
-  const invoiceId = crypto.randomUUID()
-  const invoiceNumber = createInvoiceNumber(now, Number(summary?.count ?? 0) + 1)
-
-  await db.transaction(async (tx) => {
-    await tx.insert(invoices).values({
-      id: invoiceId,
-      invoiceNumber,
-      clientId: input.clientId,
-      currency: client.currency,
-      periodStart: startDate,
-      periodEnd: endDate,
-      subtotalCents,
-      status: 'issued',
-      issuedAt: now,
-      dueAt,
-      notes: input.notes ?? null,
-      createdBy: currentUser.id,
-      createdAt: now,
-    })
-
-    await tx.insert(invoiceItems).values(
-      pricedWaybills.map((item) => ({
-        id: crypto.randomUUID(),
-        invoiceId,
-        waybillId: item.id,
-        amountCents: item.amountCents,
-        pricingTier: item.pricingTier,
-        createdAt: now,
-      })),
-    )
+  const result = await createInvoiceForWindow({
+    clientId: input.clientId,
+    periodStart,
+    periodEnd,
+    dueAt,
+    notes: input.notes ?? null,
+    createdBy: currentUser.id,
+    source: 'manual',
   })
 
-  const detail = await getInvoiceDetail(invoiceId)
-  return c.json({ invoice: serializeInvoiceDetail(detail) }, 201)
+  return c.json({ invoice: serializeInvoiceDetail(result.invoice) }, 201)
 })
 
 invoiceRoutes.patch('/:id/status', async (c) => {
@@ -334,6 +127,11 @@ invoiceRoutes.patch('/:id/status', async (c) => {
 
   const detail = await getInvoiceDetail(invoiceId)
   return c.json({ invoice: serializeInvoiceDetail(detail) })
+})
+
+invoiceRoutes.post('/:id/send-email', async (c) => {
+  const response = await sendInvoiceEmail(c.req.param('id'))
+  return c.json(response)
 })
 
 invoiceRoutes.get('/:id/pdf', async (c) => {

@@ -19,6 +19,7 @@ The backend Docker build is split into:
 
 - a lean `runtime` image for the API service
 - a separate `ops` image for migrations, seed data, and admin bootstrap tasks
+- a `backend-worker` service in Compose for scheduled invoice automation
 
 ## First-time setup
 
@@ -126,6 +127,17 @@ The local preview helper mirrors the same flow:
 - `bash deploy/local-preview.sh logs`
 - `bash deploy/local-preview.sh down`
 
+## Backups And Recovery
+
+Operational backup and recovery guidance lives in:
+
+- `docs/ops-runbook.md`
+
+PostgreSQL helper scripts:
+
+- `bash deploy/backup-postgres.sh`
+- `bash deploy/restore-postgres.sh <backup.dump> --yes-i-understand`
+
 ## GitHub Actions
 
 The repo includes a single CI/CD workflow at `.github/workflows/ci-cd.yml`.
@@ -149,6 +161,13 @@ Set these GitHub secrets before enabling deployment:
 - `APP_ORIGIN` in `backend.env` must match the frontend origin, which is `https://waybills.orctatech.com`.
 - The backend joins `orcta_net` only so it can reach a PostgreSQL service there; host Caddy does not need that network.
 - The API service runs from the bundled backend runtime image; migrations and other operational commands run from the separate `backend-ops` image.
+- The worker runs from the same bundled runtime image and is controlled with `INVOICE_AUTOMATION_ENABLED`, `INVOICE_AUTOMATION_INTERVAL_MINUTES`, `INVOICE_AUTOMATION_LOOKBACK_WEEKS`, and `AUTOMATION_ACTOR_PHONE`.
+- Real invoice email delivery uses SMTP and requires `MAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `MAIL_FROM`.
+- The worker now has its own Docker healthcheck. It stays healthy when automation is disabled, when a sweep is actively running, or when recent worker activity is still fresh. It turns unhealthy if the worker stalls or if the last completed sweep failed and has not recovered.
+- To inspect worker health in production:
+  - `docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml ps`
+  - `docker compose --env-file deploy/compose.env -f deploy/docker-compose.yml logs -f backend-worker`
+  - use the invoices page automation monitor for the latest run state, last error, and email sweep summary
 - Caddy should remain the public entry point.
 - Local Docker preview works without `orcta_net`; it uses its own Postgres service.
 - Upload-dependent flows still need real R2 env values. If you leave the local R2 vars blank, the rest of the app can still be inspected, but media uploads and generated file storage will fail.
